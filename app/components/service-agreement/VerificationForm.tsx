@@ -3,31 +3,24 @@
 import FormField from "@/app/components/service-agreement/FormField";
 import type { FieldSectionProps } from "@/app/components/service-agreement/FormField";
 
-const DOCUMENT_SENT_OPTIONS = [
-  { value: "", label: "Select option" },
-  { value: "Yes", label: "Yes" },
-  { value: "No", label: "No" },
-];
-
 const SENDING_PLATFORMS = [
-  { value: "", label: "Select platform" },
+  { value: "", label: "Select Email or WhatsApp" },
   { value: "Email", label: "Email" },
   { value: "WhatsApp", label: "WhatsApp" },
-  { value: "Email & WhatsApp", label: "Email & WhatsApp" },
-  { value: "Physical Copy", label: "Physical Copy" },
-  { value: "Other", label: "Other" },
 ];
 
-const AM_PM_OPTIONS = [
-  { value: "", label: "Select" },
-  { value: "AM", label: "AM" },
-  { value: "PM", label: "PM" },
+const LANGUAGE_OPTIONS = [
+  { value: "", label: "Select language" },
+  { value: "English", label: "English" },
+  { value: "Hindi", label: "Hindi" },
+  { value: "Other", label: "Other (type)" },
 ];
 
 export default function VerificationForm({
   data,
   onChange,
   errors,
+  lockedFields,
 }: FieldSectionProps) {
   return (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -37,8 +30,20 @@ export default function VerificationForm({
         value={data.language}
         error={errors.language}
         onChange={onChange}
-        placeholder="e.g. Hindi, English"
+        control="select"
+        options={LANGUAGE_OPTIONS}
       />
+
+      {data.language === "Other" ? (
+        <FormField
+          field="languageOther"
+          label="Other Language"
+          value={data.languageOther}
+          error={errors.languageOther}
+          onChange={onChange}
+          placeholder="Type the language"
+        />
+      ) : null}
 
       <FormField
         field="agentName"
@@ -46,7 +51,13 @@ export default function VerificationForm({
         value={data.agentName}
         error={errors.agentName}
         onChange={onChange}
-        placeholder="Enter agent name"
+        disabled={lockedFields?.agentName}
+        placeholder="Enter agent name if missing in Firestore"
+        hint={
+          lockedFields?.agentName
+            ? "Loaded from the selected Firestore client."
+            : "Loaded automatically from the selected client when available."
+        }
       />
 
       <FormField
@@ -97,17 +108,35 @@ export default function VerificationForm({
 
       <FormField
         field="documentSent"
-        label="Documents Sent"
+        label="Documents Sent to Customer"
         value={data.documentSent}
         error={errors.documentSent}
         onChange={onChange}
-        control="select"
-        options={DOCUMENT_SENT_OPTIONS}
+        disabled
+      />
+
+      <FormField
+        field="sentDate"
+        label="Date (same as Invoice Date)"
+        value={data.sentDate}
+        error={errors.sentDate}
+        onChange={onChange}
+        type="date"
+        disabled
+      />
+
+      <FormField
+        field="sentTime"
+        label="Time"
+        value={data.sentTime}
+        error={errors.sentTime}
+        onChange={onChange}
+        type="time"
       />
 
       <FormField
         field="typeOfSendingPlatform"
-        label="Type of Sending Platform"
+        label="Sent via"
         value={data.typeOfSendingPlatform}
         error={errors.typeOfSendingPlatform}
         onChange={onChange}
@@ -116,39 +145,23 @@ export default function VerificationForm({
       />
 
       <FormField
-        field="sentDate"
-        label="Document Sent Date"
-        value={data.sentDate}
-        error={errors.sentDate}
-        onChange={onChange}
-        type="date"
-      />
-
-      <FormField
-        field="sentTime"
-        label="Document Sent Time"
-        value={data.sentTime}
-        error={errors.sentTime}
-        onChange={onChange}
-        type="time"
-      />
-
-      <FormField
         field="effectiveDate"
-        label="Effective Date"
+        label="Effective Date (same as Invoice Date)"
         value={data.effectiveDate}
         error={errors.effectiveDate}
         onChange={onChange}
         type="date"
+        disabled
       />
 
       <FormField
         field="executionDate"
-        label="Execution / Signing Date"
+        label="Execution / Signing Date (same as Invoice Date)"
         value={data.executionDate}
         error={errors.executionDate}
         onChange={onChange}
         type="date"
+        disabled
       />
 
       <FormField
@@ -158,25 +171,17 @@ export default function VerificationForm({
         error={errors.executionTime}
         onChange={onChange}
         type="time"
-      />
-
-      <FormField
-        field="executionAmPm"
-        label="AM / PM"
-        value={data.executionAmPm}
-        error={errors.executionAmPm}
-        onChange={onChange}
-        control="select"
-        options={AM_PM_OPTIONS}
+        hint="Enter the time in 24-hour format."
       />
 
       <FormField
         field="currentDate"
-        label="Current / Document Date"
+        label="Current / Document Date (same as Invoice Date)"
         value={data.currentDate}
         error={errors.currentDate}
         onChange={onChange}
         type="date"
+        disabled
       />
     </div>
   );

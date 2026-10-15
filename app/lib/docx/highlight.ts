@@ -5,7 +5,7 @@ import type PizZip from "pizzip";
  *
  * The preview exists so the operator can check what the form
  * actually put into the agreement. Every value that replaced a
- * {Placeholder} is therefore rendered on a yellow background,
+ * {Placeholder} is therefore rendered with red text,
  * which makes the filled-in data stand out from the fixed
  * contract text.
  *
@@ -28,16 +28,23 @@ const MARK_START = "";
 
 const MARK_END = "";
 
-const HIGHLIGHT_ELEMENT = '<w:highlight w:val="yellow"/>';
+const RED_TEXT_ELEMENT = '<w:color w:val="FF0000"/>';
 
 /**
- * Run properties that must follow w:highlight in a w:rPr.
+ * Run properties that must follow w:color in a w:rPr.
  *
- * CT_RPr is a sequence, so a highlight placed after one of
+ * CT_RPr is a sequence, so a color placed after one of
  * these makes the part invalid and Word repairs — or drops —
  * the document.
  */
-const AFTER_HIGHLIGHT = [
+const AFTER_COLOR = [
+  "w:spacing",
+  "w:w",
+  "w:kern",
+  "w:position",
+  "w:sz",
+  "w:szCs",
+  "w:highlight",
   "w:u",
   "w:effect",
   "w:bdr",
@@ -67,7 +74,7 @@ const MARK_PATTERN = /[]/g;
  *
  * `unfilled` carries the blank rules the template falls back
  * to for an empty optional field (the witness lines). Those
- * are the absence of data, so highlighting them yellow would
+ * are the absence of data, so marking them red would
  * claim something was filled in when it was not.
  */
 export function markFilledValues(
@@ -88,20 +95,22 @@ export function markFilledValues(
   return marked;
 }
 
-function highlightedRunProperties(runProperties: string): string {
+function redTextRunProperties(runProperties: string): string {
   if (!runProperties || /^<w:rPr(?:\s[^>]*)?\/>$/.test(runProperties)) {
-    return `<w:rPr>${HIGHLIGHT_ELEMENT}</w:rPr>`;
+    return `<w:rPr>${RED_TEXT_ELEMENT}</w:rPr>`;
   }
 
   /*
    * A template run may already carry a highlight; the review
    * colour replaces it rather than being added next to it.
    */
-  const cleaned = runProperties.replace(/<w:highlight\b[^>]*\/>/g, "");
+  const cleaned = runProperties
+    .replace(/<w:highlight\b[^>]*\/>/g, "")
+    .replace(/<w:color\b[^>]*\/>/g, "");
 
   let insertAt = -1;
 
-  for (const name of AFTER_HIGHLIGHT) {
+  for (const name of AFTER_COLOR) {
     const match = cleaned.match(new RegExp(`<${name}[\\s/>]`));
 
     if (match?.index !== undefined && (insertAt === -1 || match.index < insertAt)) {
@@ -113,7 +122,7 @@ function highlightedRunProperties(runProperties: string): string {
     insertAt = cleaned.lastIndexOf("</w:rPr>");
   }
 
-  return cleaned.slice(0, insertAt) + HIGHLIGHT_ELEMENT + cleaned.slice(insertAt);
+  return cleaned.slice(0, insertAt) + RED_TEXT_ELEMENT + cleaned.slice(insertAt);
 }
 
 interface ParsedRun {
@@ -163,7 +172,7 @@ function createRunSplitter(): (run: string) => string {
       /*
        * A run in the middle of a marked value. Runs without
        * text (a lone w:br) are left alone, otherwise the
-       * yellow would run on past the end of the line.
+       * red text would run on past the end of the line.
        */
       if (!marked || !run.includes("<w:t")) {
         return run;
@@ -175,7 +184,7 @@ function createRunSplitter(): (run: string) => string {
         return run;
       }
 
-      return `${parsed.openingTag}${highlightedRunProperties(
+      return `${parsed.openingTag}${redTextRunProperties(
         parsed.runProperties,
       )}${parsed.body}</w:r>`;
     }
@@ -188,7 +197,7 @@ function createRunSplitter(): (run: string) => string {
 
     const { openingTag, runProperties, body } = parsed;
 
-    const markedProperties = highlightedRunProperties(runProperties);
+    const markedProperties = redTextRunProperties(runProperties);
 
     let output = "";
 
@@ -253,8 +262,8 @@ function createRunSplitter(): (run: string) => string {
 }
 
 /**
- * Turns the sentinels left by `markFilledValues` into yellow
- * highlighting, in place, across every rendered part.
+ * Turns the sentinels left by `markFilledValues` into red text
+ * in place, across every rendered part.
  *
  * Any sentinel that could not be paired up is removed, so no
  * marker ever reaches the generated document.

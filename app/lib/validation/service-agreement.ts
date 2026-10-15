@@ -36,10 +36,10 @@ const DATE_FIELDS: {
   label: string;
   allowsFuture?: boolean;
 }[] = [
-  { field: "customerDate", label: "Customer Date" },
+  { field: "customerDate", label: "Invoice Date / Customer Date" },
   { field: "issueDate", label: "Issue Date" },
   { field: "validityDate", label: "Validity Date", allowsFuture: true },
-  { field: "paymentDate", label: "Payment Date" },
+  { field: "paymentDate", label: "Transaction 1 Date" },
   { field: "callDate", label: "Verification Call Date" },
   { field: "acceptanceDate", label: "Acceptance Date" },
   { field: "sentDate", label: "Document Sent Date" },
@@ -63,6 +63,17 @@ function isValidAmount(value: string): boolean {
 
   return Number.isFinite(amount) && amount >= 0;
 }
+
+const ALLOWED_PAYMENT_MODES = [
+  "UPI",
+  "NEFT",
+  "RTGS",
+  "IMPS",
+  "Bank Transfer",
+  "Debit Card",
+  "Credit Card",
+  "Other",
+];
 
 export function validateServiceAgreement(
   data: ServiceAgreementData,
@@ -178,37 +189,26 @@ export function validateServiceAgreement(
   // PAYER DETAILS
   // =========================
 
-  /*
-   * payerName is the single logical payer-name
-   * input used for both:
-   *
-   * {Name}
-   * {PayerName}
-   *
-   * Relationship is optional only when no payer
-   * information is supplied.
-   */
-
-  if (data.payerName.trim() && !data.relationship.trim()) {
-    addError(
-      "relationship",
-      "Relationship is required when Payer Name is provided.",
-    );
+  if (data.payerName.trim() !== data.customerName.trim()) {
+    addError("payerName", "Payer Name must match the Customer Name.");
   }
 
-  if (!data.payerName.trim() && data.relationship.trim()) {
-    addError(
-      "payerName",
-      "Payer Name is required when Relationship is provided.",
-    );
+  if (data.relationship.trim() !== "Self") {
+    addError("relationship", "Relationship must be Self.");
   }
 
   // =========================
   // PLAN DETAILS
   // =========================
 
-  if (!data.planName.trim()) {
-    addError("planName", "Plan Name is required.");
+  const allowedPlanNames = ["Custom", "2A", "2C", "2A+2C", "Other"];
+
+  if (!allowedPlanNames.includes(data.planName)) {
+    addError("planName", "Choose a plan name from the list.");
+  }
+
+  if (data.planName === "Other" && !data.planNameOther?.trim()) {
+    addError("planNameOther", "Enter the other plan name.");
   }
 
   if (!data.planNumber.trim()) {
@@ -262,7 +262,7 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.utr.trim()) {
-    addError("utr", "Payment Reference / UTR is required.");
+    addError("utr", "Transaction 1 UTR is required.");
   }
 
   if (!data.paymentDate.trim()) {
@@ -272,25 +272,89 @@ export function validateServiceAgreement(
   }
 
   if (!data.paymentTime.trim()) {
-    addError("paymentTime", "Payment Time is required.");
+    addError("paymentTime", "Transaction 1 Time is required.");
   } else if (!isValidTime(data.paymentTime)) {
-    addError("paymentTime", "Payment Time is invalid.");
+    addError("paymentTime", "Transaction 1 Time is invalid.");
   }
 
-  if (!data.paymentMode.trim()) {
-    addError("paymentMode", "Payment Mode is required.");
+  const additionalTransactions = Array.isArray(data.additionalTransactions)
+    ? data.additionalTransactions
+    : [];
+
+  if (additionalTransactions.length > 2) {
+    addError(
+      "additionalTransactions",
+      "A maximum of three transactions is allowed.",
+    );
   }
 
-  if (!data.payee.trim()) {
-    addError("payee", "Payee is required.");
+  additionalTransactions.slice(0, 2).forEach((transaction, index) => {
+    const transactionNumber = index + 2;
+    const date = typeof transaction?.date === "string" ? transaction.date : "";
+    const time = typeof transaction?.time === "string" ? transaction.time : "";
+    const utr = typeof transaction?.utr === "string" ? transaction.utr : "";
+    const paymentMode =
+      typeof transaction?.paymentMode === "string"
+        ? transaction.paymentMode
+        : "";
+
+    if (!date.trim()) {
+      addError(
+        "additionalTransactions",
+        `Transaction ${transactionNumber} date is required.`,
+      );
+    } else if (!isValidDate(date)) {
+      addError(
+        "additionalTransactions",
+        `Transaction ${transactionNumber} date is invalid.`,
+      );
+    }
+
+    if (!time.trim()) {
+      addError(
+        "additionalTransactions",
+        `Transaction ${transactionNumber} time is required.`,
+      );
+    } else if (!isValidTime(time)) {
+      addError(
+        "additionalTransactions",
+        `Transaction ${transactionNumber} time is invalid.`,
+      );
+    }
+
+    if (!utr.trim()) {
+      addError(
+        "additionalTransactions",
+        `Transaction ${transactionNumber} UTR is required.`,
+      );
+    }
+
+    if (!ALLOWED_PAYMENT_MODES.includes(paymentMode)) {
+      addError(
+        "additionalTransactions",
+        `Transaction ${transactionNumber} payment mode is required.`,
+      );
+    }
+  });
+
+  if (!ALLOWED_PAYMENT_MODES.includes(data.paymentMode)) {
+    addError("paymentMode", "Transaction 1 payment mode is required.");
+  }
+
+  if (data.payee.trim() !== data.customerName.trim()) {
+    addError("payee", "Payee must match the Customer Name.");
   }
 
   // =========================
   // VERIFICATION / AGENT
   // =========================
 
-  if (!data.language.trim()) {
-    addError("language", "Language of Explanation is required.");
+  if (!["English", "Hindi", "Other"].includes(data.language)) {
+    addError("language", "Choose English, Hindi, or Other.");
+  }
+
+  if (data.language === "Other" && !data.languageOther?.trim()) {
+    addError("languageOther", "Enter the other language.");
   }
 
   if (!data.agentName.trim()) {
@@ -333,12 +397,15 @@ export function validateServiceAgreement(
   // DOCUMENT DELIVERY
   // =========================
 
-  if (data.documentSent !== "Yes" && data.documentSent !== "No") {
-    addError("documentSent", "Documents Sent must be either Yes or No.");
+  if (data.documentSent !== "Yes") {
+    addError("documentSent", "Documents Sent to Customer must be Yes.");
   }
 
-  if (!data.typeOfSendingPlatform.trim()) {
-    addError("typeOfSendingPlatform", "Type of Sending Platform is required.");
+  if (!["Email", "WhatsApp"].includes(data.typeOfSendingPlatform)) {
+    addError(
+      "typeOfSendingPlatform",
+      "Choose Email or WhatsApp as the sending method.",
+    );
   }
 
   if (!data.sentDate.trim()) {
@@ -416,10 +483,6 @@ export function validateServiceAgreement(
     addError("executionTime", "Execution / Signing Time is invalid.");
   }
 
-  if (data.executionAmPm !== "AM" && data.executionAmPm !== "PM") {
-    addError("executionAmPm", "Execution AM/PM must be either AM or PM.");
-  }
-
   // =========================
   // CURRENT DATE
   // =========================
@@ -431,6 +494,40 @@ export function validateServiceAgreement(
   }
 
   const today = getTodayDateString();
+
+  const invoiceDateLinkedFields = [
+    { field: "sentDate", label: "Document Sent Date" },
+    { field: "effectiveDate", label: "Effective Date" },
+    { field: "executionDate", label: "Execution / Signing Date" },
+    { field: "currentDate", label: "Current / Document Date" },
+  ] as const;
+
+  if (data.customerDate.trim()) {
+    for (const linkedField of invoiceDateLinkedFields) {
+      if (data[linkedField.field] !== data.customerDate) {
+        addError(
+          linkedField.field,
+          `${linkedField.label} must match the Invoice Date.`,
+        );
+      }
+    }
+  }
+
+  for (const [index, transaction] of additionalTransactions
+    .slice(0, 2)
+    .entries()) {
+    if (
+      typeof transaction?.date === "string" &&
+      transaction.date &&
+      isValidDate(transaction.date) &&
+      transaction.date > today
+    ) {
+      addError(
+        "additionalTransactions",
+        `Transaction ${index + 2} date cannot be after today.`,
+      );
+    }
+  }
 
   for (const dateField of DATE_FIELDS) {
     const value = data[dateField.field];

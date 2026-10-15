@@ -10,6 +10,10 @@ import WitnessForm from "@/app/components/service-agreement/WitnessForm";
 import DocumentPreview from "@/app/components/service-agreement/DocumentPreview";
 import Image from "next/image";
 
+import type {
+  AgreementClient,
+  AgreementClientLoadState,
+} from "@/app/types/agreement-client";
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import type { FieldErrors } from "@/app/lib/validation/service-agreement";
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
@@ -31,9 +35,10 @@ const initialData: ServiceAgreementData = {
   customerDate: "",
 
   payerName: "",
-  relationship: "",
+  relationship: "Self",
 
   planName: "",
+  planNameOther: "",
   planNumber: "",
 
   issueDate: "",
@@ -46,10 +51,12 @@ const initialData: ServiceAgreementData = {
   utr: "",
   paymentDate: "",
   paymentTime: "",
+  additionalTransactions: [],
   paymentMode: "",
   payee: "",
 
   language: "",
+  languageOther: "",
   agentName: "",
 
   callDate: "",
@@ -60,7 +67,7 @@ const initialData: ServiceAgreementData = {
   acceptanceDate: "",
   acceptanceTime: "",
 
-  documentSent: "",
+  documentSent: "Yes",
   sentDate: "",
   sentTime: "",
   typeOfSendingPlatform: "",
@@ -78,7 +85,6 @@ const initialData: ServiceAgreementData = {
   effectiveDate: "",
   executionDate: "",
   executionTime: "",
-  executionAmPm: "",
 
   currentDate: "",
 };
@@ -141,6 +147,18 @@ export default function ServiceAgreementPage() {
 
   const [isDownloaded, setIsDownloaded] = useState(false);
 
+  const [clients, setClients] = useState<AgreementClient[]>([]);
+
+  const [selectedClient, setSelectedClient] =
+    useState<AgreementClient | null>(null);
+
+  const [clientsLoadState, setClientsLoadState] =
+    useState<AgreementClientLoadState>("loading");
+
+  const [clientLoadMessage, setClientLoadMessage] = useState("");
+
+  const [isConfirmingDownload, setIsConfirmingDownload] = useState(false);
+
   const totalPayable = useMemo(
     () => calculateTotal(data.feesWithoutTax, data.tax),
     [data.feesWithoutTax, data.tax],
@@ -164,6 +182,56 @@ export default function ServiceAgreementPage() {
       }
     };
   }, [pdfUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadClients = async () => {
+      try {
+        const response = await fetch("/api/service-agreement/clients", {
+          cache: "no-store",
+        });
+        const result = (await response.json()) as {
+          clients?: AgreementClient[];
+          configured?: boolean;
+          message?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(result.message || "Could not load the client list.");
+        }
+
+        if (cancelled) return;
+
+        if (!result.configured) {
+          setClients([]);
+          setClientsLoadState("unavailable");
+          setClientLoadMessage("Firestore is not configured yet.");
+          return;
+        }
+
+        setClients(result.clients ?? []);
+        setClientsLoadState("ready");
+        setClientLoadMessage("");
+      } catch (error) {
+        if (cancelled) return;
+
+        setClients([]);
+        setClientsLoadState("unavailable");
+        setClientLoadMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not load the client list.",
+        );
+      }
+    };
+
+    void loadClients();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /*
    * ---------------------------------------------------------
@@ -225,8 +293,33 @@ export default function ServiceAgreementPage() {
             ...fieldOrUpdatedData,
           };
 
+    const synchronizedDateFields: (keyof ServiceAgreementData)[] = [
+      "sentDate",
+      "effectiveDate",
+      "executionDate",
+      "currentDate",
+    ];
+    const fieldsToClear: (keyof ServiceAgreementData)[] = [...changedFields];
+
+    if (changedFields.includes("customerDate")) {
+      fieldsToClear.push(...synchronizedDateFields);
+    }
+
+    if (changedFields.includes("customerName")) {
+      fieldsToClear.push("payerName", "relationship", "payee");
+    }
+
+    const invoiceDate = nextData.customerDate;
+
     setData({
       ...nextData,
+      payerName: nextData.customerName,
+      relationship: "Self",
+      payee: nextData.customerName,
+      sentDate: invoiceDate,
+      effectiveDate: invoiceDate,
+      executionDate: invoiceDate,
+      currentDate: invoiceDate,
       totalPayable: calculateTotal(nextData.feesWithoutTax, nextData.tax),
     });
 
@@ -236,13 +329,13 @@ export default function ServiceAgreementPage() {
      * see what is still outstanding.
      */
     setFieldErrors((previous) => {
-      if (!changedFields.some((field) => previous[field])) {
+      if (!fieldsToClear.some((field) => previous[field])) {
         return previous;
       }
 
       const next = { ...previous };
 
-      for (const field of changedFields) {
+      for (const field of fieldsToClear) {
         delete next[field];
       }
 
@@ -273,6 +366,25 @@ export default function ServiceAgreementPage() {
     }
 
     setPdfBlob(null);
+  };
+
+  const handleSelectClient = (clientId: string) => {
+    const nextClient = clients.find((client) => client.id === clientId) ?? null;
+    const nextData: Partial<ServiceAgreementData> = nextClient
+      ? {
+          ...initialData,
+          customerName: nextClient.name,
+          customerAge: nextClient.age,
+          customerDateOfBirth: nextClient.dateOfBirth,
+          fullAddressCustomer: nextClient.address,
+          customerPhone: nextClient.phone,
+          customerMail: nextClient.email,
+          agentName: nextClient.agentName,
+        }
+      : initialData;
+
+    setSelectedClient(nextClient);
+    handleDataChange(nextData);
   };
 
   /*
@@ -311,14 +423,14 @@ export default function ServiceAgreementPage() {
 
   /*
    * ---------------------------------------------------------
-   * REQUEST ONE GENERATED PDF
+   * REQUEST A GENERATED PDF
    *
    * The returned PDF is used for both the on-screen review and
-   * the final download, so the provider only converts once.
+   * the final download, and red text is for review only.
    * ---------------------------------------------------------
    */
 
-  const requestPdf = async (): Promise<Blob> => {
+  const requestPdf = async (highlight: boolean): Promise<Blob> => {
     const response = await fetch("/api/service-agreement/generate-pdf", {
       method: "POST",
       headers: {
@@ -327,14 +439,16 @@ export default function ServiceAgreementPage() {
       body: JSON.stringify({
         ...data,
         totalPayable,
-        highlight: false,
+        highlight,
       }),
     });
 
     const contentType = response.headers.get("content-type") || "";
 
     if (!response.ok) {
-      let message = "Unable to generate the Service Agreement preview.";
+      let message = highlight
+        ? "Unable to generate the Service Agreement preview."
+        : "Unable to generate the clean Service Agreement PDF.";
 
       if (contentType.includes("application/json")) {
         try {
@@ -416,8 +530,8 @@ export default function ServiceAgreementPage() {
 
       setPdfBlob(null);
 
-      // One provider conversion supplies both the on-screen preview and download.
-      const generatedBlob = await requestPdf();
+      // Create the red-text review copy. Export is generated clean on confirmation.
+      const generatedBlob = await requestPdf(true);
       const objectUrl = URL.createObjectURL(generatedBlob);
 
       setPdfBlob(generatedBlob);
@@ -449,6 +563,15 @@ export default function ServiceAgreementPage() {
     setIsDownloaded(false);
     setErrorMessage("");
 
+    if (isDownloaded) {
+      setSelectedClient(null);
+      setData(initialData);
+      setFieldErrors({});
+      setPdfBlob(null);
+      setPdfUrl(null);
+      return;
+    }
+
     /*
      * Keep the generated PDF in memory while editing.
      *
@@ -461,16 +584,12 @@ export default function ServiceAgreementPage() {
    * ---------------------------------------------------------
    * FINAL DOWNLOAD
    *
-   * IMPORTANT:
-   * Do NOT call the API again.
-   *
-   * pdfBlob already holds the clean copy generated alongside
-   * the review copy, so what is downloaded carries no review
-   * highlighting and matches the data that was inspected.
+   * Generate a clean PDF from the reviewed form data so
+   * preview-only red text is not included in the export.
    * ---------------------------------------------------------
    */
 
-  const handleConfirmAndDownload = () => {
+  const handleConfirmAndDownload = async () => {
     if (!pdfBlob || !pdfUrl) {
       setErrorMessage(
         "No generated PDF is available. Please generate the preview again.",
@@ -479,24 +598,62 @@ export default function ServiceAgreementPage() {
       return;
     }
 
-    const safeAgreementNumber =
-      data.agreementNumber.replace(/[^a-zA-Z0-9_-]/g, "_").trim() ||
-      "service-agreement";
+    if (isConfirmingDownload || isDownloaded) return;
 
-    const downloadUrl = URL.createObjectURL(pdfBlob);
+    setIsConfirmingDownload(true);
+    setErrorMessage("");
 
-    const anchor = document.createElement("a");
+    try {
+      const exportBlob = await requestPdf(false);
 
-    anchor.href = downloadUrl;
-    anchor.download = `${safeAgreementNumber}.pdf`;
+      if (selectedClient) {
+        const response = await fetch(
+          "/api/service-agreement/clients/complete",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: selectedClient.id,
+            }),
+          },
+        );
+        const result = (await response.json()) as { message?: string };
 
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
+        if (!response.ok) {
+          throw new Error(
+            result.message || "Could not update this client in Firestore.",
+          );
+        }
 
-    URL.revokeObjectURL(downloadUrl);
+      }
 
-    setIsDownloaded(true);
+      const safeAgreementNumber =
+        data.agreementNumber.replace(/[^a-zA-Z0-9_-]/g, "_").trim() ||
+        "service-agreement";
+
+      const downloadUrl = URL.createObjectURL(exportBlob);
+
+      const anchor = document.createElement("a");
+
+      anchor.href = downloadUrl;
+      anchor.download = `${safeAgreementNumber}.pdf`;
+
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      URL.revokeObjectURL(downloadUrl);
+
+      setIsDownloaded(true);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not complete the client agreement.",
+      );
+    } finally {
+      setIsConfirmingDownload(false);
+    }
   };
 
   /*
@@ -583,7 +740,16 @@ export default function ServiceAgreementPage() {
           <div className="space-y-5">
             <section id="agreement-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
               <SectionHeading number="01" title="Customer & agreement" description="Agreement reference, customer identity and contact details." />
-              <CustomerForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+              <CustomerForm
+                data={data}
+                onChange={handleDataChange}
+                errors={fieldErrors}
+                clients={clients}
+                selectedClient={selectedClient}
+                clientsLoadState={clientsLoadState}
+                clientLoadMessage={clientLoadMessage}
+                onSelectClient={handleSelectClient}
+              />
             </section>
 
             <section id="plan-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
@@ -593,12 +759,22 @@ export default function ServiceAgreementPage() {
 
             <section id="payment-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
               <SectionHeading number="03" title="Payment record" description="Capture the payment reference and official receipt details." />
-              <PaymentForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+              <PaymentForm
+                data={data}
+                onChange={handleDataChange}
+                onUpdate={(updates) => handleDataChange(updates)}
+                errors={fieldErrors}
+              />
             </section>
 
             <section id="verification-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
               <SectionHeading number="04" title="Verification & execution" description="Record the explanation, acceptance, delivery and signing timeline." />
-              <VerificationForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+              <VerificationForm
+                data={data}
+                onChange={handleDataChange}
+                errors={fieldErrors}
+                lockedFields={{ agentName: Boolean(selectedClient?.agentName) }}
+              />
             </section>
 
             <section id="witness-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
@@ -617,6 +793,9 @@ export default function ServiceAgreementPage() {
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
                     Your entries are checked before conversion. The PDF preview
                     lets you inspect the generated agreement before you save it.
+                  </p>
+                  <p className="mt-2 max-w-2xl text-xs leading-5 text-rose-700">
+                    Entered values appear in red in the preview; the downloaded PDF is clean.
                   </p>
                   <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
                     The generated agreement is sent to ConvertAPI for PDF rendering.
@@ -680,6 +859,7 @@ export default function ServiceAgreementPage() {
           pdfUrl={pdfUrl}
           isGenerating={isGeneratingPreview}
           isDownloaded={isDownloaded}
+          isConfirmingDownload={isConfirmingDownload}
           onBackToEdit={handleBackToEdit}
           onConfirmAndDownload={handleConfirmAndDownload}
         />

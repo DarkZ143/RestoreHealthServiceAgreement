@@ -7,6 +7,7 @@ import Docxtemplater from "docxtemplater";
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
 import { describeTemplateError } from "@/app/lib/docx/template-error";
+import { addCustomerSignature } from "@/app/lib/docx/signature";
 
 export const runtime = "nodejs";
 
@@ -142,12 +143,12 @@ function buildTemplateData(data: ServiceAgreementData): Record<string, string> {
      * The master template contains both {Name}
      * and {PayerName}.
      *
-     * Both intentionally use payerName.
+     * Both intentionally use the Customer Name.
      */
-    Name: data.payerName,
-    PayerName: data.payerName,
+    Name: data.customerName,
+    PayerName: data.customerName,
 
-    Relationship: data.relationship,
+    Relationship: "Self",
 
     /*
      * Clause 17.4 - exactly one of the two boxes is ticked.
@@ -155,7 +156,8 @@ function buildTemplateData(data: ServiceAgreementData): Record<string, string> {
     PayerIsCustomerBox: payerSelf ? TICKED_BOX : EMPTY_BOX,
     PayerIsFamilyBox: payerSelf ? EMPTY_BOX : TICKED_BOX,
 
-    PlanName: data.planName,
+    PlanName:
+      data.planName === "Other" ? data.planNameOther : data.planName,
     PlanNumber: data.planNumber,
 
     IssueDate: formatDate(data.issueDate),
@@ -165,13 +167,38 @@ function buildTemplateData(data: ServiceAgreementData): Record<string, string> {
     Tax: data.tax,
     TotalPayable: data.totalPayable,
 
-    UTR: data.utr,
-    PaymentDate: formatDate(data.paymentDate),
-    PaymentTime: formatTime(data.paymentTime),
-    PaymentMode: data.paymentMode,
-    Payee: data.payee,
+    UTR: [
+      data.utr,
+      ...(data.additionalTransactions ?? []).map((transaction) => transaction.utr),
+    ]
+      .filter(Boolean)
+      .join(" | "),
+    PaymentDate: [
+      data.paymentDate,
+      ...(data.additionalTransactions ?? []).map((transaction) => transaction.date),
+    ]
+      .filter(Boolean)
+      .map(formatDate)
+      .join(" | "),
+    PaymentTime: [
+      data.paymentTime,
+      ...(data.additionalTransactions ?? []).map((transaction) => transaction.time),
+    ]
+      .filter(Boolean)
+      .map(formatTime)
+      .join(" | "),
+    PaymentMode: [
+      data.paymentMode,
+      ...(data.additionalTransactions ?? []).map(
+        (transaction) => transaction.paymentMode,
+      ),
+    ]
+      .filter(Boolean)
+      .join(" | "),
+    Payee: data.customerName,
 
-    Language: data.language,
+    Language:
+      data.language === "Other" ? data.languageOther : data.language,
     AgentName: data.agentName,
 
     CallDate: formatDate(data.callDate),
@@ -207,7 +234,7 @@ function buildTemplateData(data: ServiceAgreementData): Record<string, string> {
 
     Date: formatDate(data.executionDate),
     Time: formatTime(data.executionTime),
-    "AM/PM": data.executionAmPm,
+    "AM/PM": "",
 
     CurrentDate: formatDate(data.currentDate),
   };
@@ -256,7 +283,10 @@ async function generateDocx(data: ServiceAgreementData): Promise<Buffer> {
     throw error;
   }
 
-  return document.getZip().generate({
+  const outputZip = document.getZip();
+  await addCustomerSignature(outputZip);
+
+  return outputZip.generate({
     type: "nodebuffer",
     compression: "DEFLATE",
   });

@@ -3,6 +3,15 @@
 import FormField from "@/app/components/service-agreement/FormField";
 import type { FieldSectionProps } from "@/app/components/service-agreement/FormField";
 
+const PLAN_OPTIONS = [
+  { value: "", label: "Select plan" },
+  { value: "Custom", label: "Custom" },
+  { value: "2A", label: "2A" },
+  { value: "2C", label: "2C" },
+  { value: "2A+2C", label: "2A+2C" },
+  { value: "Other", label: "Other (type)" },
+];
+
 export default function PlanForm({
   data,
   onChange,
@@ -16,8 +25,21 @@ export default function PlanForm({
         value={data.planName}
         error={errors.planName}
         onChange={onChange}
-        placeholder="Enter plan name"
+        control="select"
+        options={PLAN_OPTIONS}
       />
+
+      {data.planName === "Other" ? (
+        <FormField
+          field="planNameOther"
+          label="Other Plan Name"
+          value={data.planNameOther}
+          error={errors.planNameOther}
+          onChange={onChange}
+          placeholder="Type the plan name"
+          wrapperClassName="md:col-span-2"
+        />
+      ) : null}
 
       <FormField
         field="planNumber"

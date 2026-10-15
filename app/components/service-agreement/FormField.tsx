@@ -14,12 +14,14 @@ export type { FieldErrors };
 export interface FieldSectionProps {
   data: ServiceAgreementData;
   onChange: (field: keyof ServiceAgreementData, value: string) => void;
+  onUpdate?: (updates: Partial<ServiceAgreementData>) => void;
 
   /**
    * Populated only after a failed submit. A field present here
    * is rendered in red together with its message.
    */
   errors: FieldErrors;
+  lockedFields?: Partial<Record<keyof ServiceAgreementData, boolean>>;
 }
 
 interface SelectOption {
@@ -59,6 +61,7 @@ interface FormFieldProps {
    * "+91 ", spaces or dashes from being entered.
    */
   digitsOnly?: boolean;
+  disabled?: boolean;
 
   /** Grid helpers such as "md:col-span-2". */
   wrapperClassName?: string;
@@ -106,6 +109,7 @@ export default function FormField({
   maxLength,
   inputMode,
   digitsOnly = false,
+  disabled = false,
   wrapperClassName = "",
   inputClassName,
 }: FormFieldProps) {
@@ -167,6 +171,7 @@ export default function FormField({
     onChange: handleChange,
     "aria-invalid": hasError,
     "aria-describedby": hasError ? errorId : undefined,
+    disabled,
   };
 
   return (
@@ -196,7 +201,10 @@ export default function FormField({
             {...sharedProps}
             rows={rows}
             placeholder={placeholder}
-            className={controlClassName(hasError, `resize-y ${padding}`)}
+            className={controlClassName(
+              hasError,
+              `resize-y ${padding} disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500`,
+            )}
           />
         ) : null}
 
@@ -205,7 +213,7 @@ export default function FormField({
             {...sharedProps}
             className={controlClassName(
               hasError,
-              `${padding} ${hasError ? "" : "bg-white"}`,
+              `${padding} ${hasError ? "" : "bg-white"} disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500`,
             )}
           >
             {(options ?? []).map((option) => (
@@ -220,13 +228,17 @@ export default function FormField({
           <input
             {...sharedProps}
             type={type}
+            lang={type === "time" ? "en-GB" : undefined}
             placeholder={placeholder}
             min={dateMin}
             max={dateMax}
             step={step}
             maxLength={maxLength}
             inputMode={inputMode}
-            className={controlClassName(hasError, padding)}
+            className={controlClassName(
+              hasError,
+              `${padding} disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500`,
+            )}
           />
         ) : null}
       </div>

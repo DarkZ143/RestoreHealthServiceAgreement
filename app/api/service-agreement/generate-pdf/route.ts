@@ -17,6 +17,7 @@ import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
 
 import { describeTemplateError } from "@/app/lib/docx/template-error";
+import { addCustomerSignature } from "@/app/lib/docx/signature";
 
 import {
   applyHighlightMarkers,
@@ -289,13 +290,13 @@ function buildTemplateData(
 
 
 
-    Name: data.payerName,
+    Name: data.customerName,
 
-    PayerName: data.payerName,
+    PayerName: data.customerName,
 
 
 
-    Relationship: data.relationship,
+    Relationship: "Self",
 
 
 
@@ -311,7 +312,8 @@ function buildTemplateData(
 
 
 
-    PlanName: data.planName,
+    PlanName:
+      data.planName === "Other" ? data.planNameOther : data.planName,
 
     PlanNumber: data.planNumber,
 
@@ -331,23 +333,48 @@ function buildTemplateData(
 
 
 
-    UTR: data.utr,
+    UTR: [
+      data.utr,
+      ...(data.additionalTransactions ?? []).map((transaction) => transaction.utr),
+    ]
+      .filter(Boolean)
+      .join(" | "),
 
 
 
-    PaymentDate: formatDate(data.paymentDate),
+    PaymentDate: [
+      data.paymentDate,
+      ...(data.additionalTransactions ?? []).map((transaction) => transaction.date),
+    ]
+      .filter(Boolean)
+      .map(formatDate)
+      .join(" | "),
 
-    PaymentTime: formatTime(data.paymentTime),
+    PaymentTime: [
+      data.paymentTime,
+      ...(data.additionalTransactions ?? []).map((transaction) => transaction.time),
+    ]
+      .filter(Boolean)
+      .map(formatTime)
+      .join(" | "),
 
-    PaymentMode: data.paymentMode,
+    PaymentMode: [
+      data.paymentMode,
+      ...(data.additionalTransactions ?? []).map(
+        (transaction) => transaction.paymentMode,
+      ),
+    ]
+      .filter(Boolean)
+      .join(" | "),
 
 
 
-    Payee: data.payee,
+    Payee: data.customerName,
 
 
 
-    Language: data.language,
+    Language:
+      data.language === "Other" ? data.languageOther : data.language,
 
 
 
@@ -413,7 +440,7 @@ function buildTemplateData(
 
     Time: formatTime(data.executionTime),
 
-    "AM/PM": data.executionAmPm,
+    "AM/PM": "",
 
 
 
@@ -603,7 +630,7 @@ async function generateDocx(
 
   /**
 
-   * Paint the filled-in values yellow for the on-screen
+   * Mark the filled-in values in red for the on-screen
 
    * review copy. The downloaded copy skips this entirely.
 
@@ -614,6 +641,8 @@ async function generateDocx(
     applyHighlightMarkers(zipOutput);
 
   }
+
+  await addCustomerSignature(zipOutput);
 
 
 
@@ -784,7 +813,7 @@ export async function POST(request: Request) {
 
      * The review copy shown in the preview marks every filled
 
-     * value in yellow. The copy the operator downloads is
+     * value in red. The copy the operator downloads is
 
      * generated from the same data without it.
 

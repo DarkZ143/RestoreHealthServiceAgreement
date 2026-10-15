@@ -34,6 +34,7 @@ export interface ServiceAgreementData {
   // =========================
 
   planName: string;
+  planNameOther: string;
   planNumber: string;
 
   issueDate: string;
@@ -50,6 +51,12 @@ export interface ServiceAgreementData {
   utr: string;
   paymentDate: string;
   paymentTime: string;
+  additionalTransactions: {
+    date: string;
+    time: string;
+    utr: string;
+    paymentMode: string;
+  }[];
   paymentMode: string;
   payee: string;
 
@@ -58,6 +65,7 @@ export interface ServiceAgreementData {
   // =========================
 
   language: string;
+  languageOther: string;
   agentName: string;
 
   callDate: string;
@@ -103,7 +111,6 @@ export interface ServiceAgreementData {
 
   executionDate: string;
   executionTime: string;
-  executionAmPm: string;
 
   currentDate: string;
 }

@@ -9,8 +9,9 @@ interface DocumentPreviewProps {
   pdfUrl: string | null;
   isGenerating?: boolean;
   isDownloaded?: boolean;
+  isConfirmingDownload?: boolean;
   onBackToEdit: () => void;
-  onConfirmAndDownload: () => void;
+  onConfirmAndDownload: () => void | Promise<void>;
 }
 
 interface ReviewField {
@@ -198,7 +199,7 @@ function getReviewSections(data: ServiceAgreementData): ReviewSection[] {
         },
         {
           key: "customerDate",
-          label: "Customer Date",
+          label: "Invoice Date / Customer Date",
           value: data.customerDate,
           format: "date",
         },
@@ -227,7 +228,8 @@ function getReviewSections(data: ServiceAgreementData): ReviewSection[] {
         {
           key: "planName",
           label: "Plan Name",
-          value: data.planName,
+          value:
+            data.planName === "Other" ? data.planNameOther : data.planName,
         },
         {
           key: "planNumber",
@@ -269,26 +271,54 @@ function getReviewSections(data: ServiceAgreementData): ReviewSection[] {
       fields: [
         {
           key: "utr",
-          label: "Payment Reference / UTR",
+          label: "Transaction 1 UTR",
           value: data.utr,
         },
         {
           key: "paymentDate",
-          label: "Payment Date",
+          label: "Transaction 1 Date",
           value: data.paymentDate,
           format: "date",
         },
         {
           key: "paymentTime",
-          label: "Payment Time",
+          label: "Transaction 1 Time",
           value: data.paymentTime,
           format: "time",
         },
         {
           key: "paymentMode",
-          label: "Payment Mode",
+          label: "Transaction 1 Payment Mode",
           value: data.paymentMode,
         },
+        ...(data.additionalTransactions ?? []).flatMap((transaction, index) => {
+          const transactionNumber = index + 2;
+
+          return [
+            {
+              key: `transaction-${transactionNumber}-date`,
+              label: `Transaction ${transactionNumber} Date`,
+              value: transaction.date,
+              format: "date" as const,
+            },
+            {
+              key: `transaction-${transactionNumber}-time`,
+              label: `Transaction ${transactionNumber} Time`,
+              value: transaction.time,
+              format: "time" as const,
+            },
+            {
+              key: `transaction-${transactionNumber}-utr`,
+              label: `Transaction ${transactionNumber} UTR`,
+              value: transaction.utr,
+            },
+            {
+              key: `transaction-${transactionNumber}-payment-mode`,
+              label: `Transaction ${transactionNumber} Payment Mode`,
+              value: transaction.paymentMode,
+            },
+          ];
+        }),
         {
           key: "payee",
           label: "Payee",
@@ -303,7 +333,8 @@ function getReviewSections(data: ServiceAgreementData): ReviewSection[] {
         {
           key: "language",
           label: "Language",
-          value: data.language,
+          value:
+            data.language === "Other" ? data.languageOther : data.language,
         },
         {
           key: "agentName",
@@ -353,24 +384,24 @@ function getReviewSections(data: ServiceAgreementData): ReviewSection[] {
       fields: [
         {
           key: "documentSent",
-          label: "Documents Sent",
+          label: "Documents Sent to Customer",
           value: data.documentSent,
         },
         {
           key: "sentDate",
-          label: "Sent Date",
+          label: "Date",
           value: data.sentDate,
           format: "date",
         },
         {
           key: "sentTime",
-          label: "Sent Time",
+          label: "Time",
           value: data.sentTime,
           format: "time",
         },
         {
           key: "typeOfSendingPlatform",
-          label: "Sending Platform",
+          label: "Sent via",
           value: data.typeOfSendingPlatform,
         },
       ],
@@ -444,11 +475,6 @@ function getReviewSections(data: ServiceAgreementData): ReviewSection[] {
           label: "Execution Time",
           value: data.executionTime,
           format: "time",
-        },
-        {
-          key: "executionAmPm",
-          label: "AM / PM",
-          value: data.executionAmPm,
         },
         {
           key: "currentDate",
@@ -671,6 +697,7 @@ export default function DocumentPreview({
   pdfUrl,
   isGenerating = false,
   isDownloaded = false,
+  isConfirmingDownload = false,
   onBackToEdit,
   onConfirmAndDownload,
 }: DocumentPreviewProps) {
@@ -728,6 +755,9 @@ export default function DocumentPreview({
                 <p className="mt-1 text-xs text-gray-500">
                   Actual PDF generated from the master Service Agreement DOCX.
                 </p>
+                <p className="mt-1 text-xs font-medium text-rose-700">
+                  Entered values are red in this review copy. Confirm &amp; Download saves a clean PDF.
+                </p>
               </div>
 
               {isGenerating ? (
@@ -767,8 +797,8 @@ export default function DocumentPreview({
                 /*
                  * The browser's own PDF viewer is chrome we do
                  * not control, and its Download button hands
-                 * over the review copy with the yellow
-                 * highlighting on it.
+                 * over the review copy with entered values
+                 * marked in red.
                  *
                  * Hiding that toolbar leaves Confirm & Download
                  * as the only way out of this screen, which is
@@ -942,19 +972,24 @@ export default function DocumentPreview({
               disabled={isGenerating}
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {"\u2190 Back & Edit"}
+              {isDownloaded ? "Create next agreement" : "\u2190 Back & Edit"}
             </button>
 
             <button
               type="button"
               onClick={onConfirmAndDownload}
-              disabled={!pdfUrl || isGenerating}
+              disabled={!pdfUrl || isGenerating || isConfirmingDownload || isDownloaded}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
             >
               {isDownloaded ? (
                 <>
                   <span>{"\u2713"}</span>
                   Downloaded
+                </>
+              ) : isConfirmingDownload ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  Saving agreement...
                 </>
               ) : (
                 <>
