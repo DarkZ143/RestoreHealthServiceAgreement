@@ -764,8 +764,18 @@ export default function DocumentPreview({
                   </p>
                 </div>
               ) : pdfUrl ? (
+                /*
+                 * The browser's own PDF viewer is chrome we do
+                 * not control, and its Download button hands
+                 * over the review copy with the yellow
+                 * highlighting on it.
+                 *
+                 * Hiding that toolbar leaves Confirm & Download
+                 * as the only way out of this screen, which is
+                 * the one that serves the clean agreement.
+                 */
                 <iframe
-                  src={pdfUrl}
+                  src={`${pdfUrl}#toolbar=0&navpanes=0&statusbar=0`}
                   title="Service Agreement PDF Preview"
                   className="h-[75vh] min-h-[700px] w-full border-0"
                 />

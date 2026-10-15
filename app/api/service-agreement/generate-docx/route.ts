@@ -6,6 +6,7 @@ import Docxtemplater from "docxtemplater";
 
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
+import { describeTemplateError } from "@/app/lib/docx/template-error";
 
 export const runtime = "nodejs";
 
@@ -229,14 +230,31 @@ async function generateDocx(data: ServiceAgreementData): Promise<Buffer> {
 
   const zip = new PizZip(templateBuffer);
 
-  const document = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-  });
-
   const templateData = buildTemplateData(data);
 
-  document.render(templateData);
+  /*
+   * Both the constructor (template compilation) and render()
+   * can throw a bundled "Multi error". Unwrap it so the
+   * response names the broken placeholder.
+   */
+  let document: Docxtemplater;
+
+  try {
+    document = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+    });
+
+    document.render(templateData);
+  } catch (error) {
+    const description = describeTemplateError(error);
+
+    if (description) {
+      throw new Error(description);
+    }
+
+    throw error;
+  }
 
   return document.getZip().generate({
     type: "nodebuffer",
@@ -271,6 +289,7 @@ export async function POST(request: Request) {
           success: false,
           message: "Please correct the following validation errors.",
           errors: validation.errors,
+          fieldErrors: validation.fieldErrors,
         },
         {
           status: 400,
@@ -335,7 +354,11 @@ export async function POST(request: Request) {
 
     let message = "Unable to generate the Service Agreement DOCX.";
 
-    if (error instanceof Error) {
+    const description = describeTemplateError(error);
+
+    if (description) {
+      message = description;
+    } else if (error instanceof Error) {
       message = error.message;
     }
 

@@ -10,6 +10,7 @@ import WitnessForm from "@/app/components/service-agreement/WitnessForm";
 import DocumentPreview from "@/app/components/service-agreement/DocumentPreview";
 
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
+import type { FieldErrors } from "@/app/lib/validation/service-agreement";
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
 
 const initialData: ServiceAgreementData = {
@@ -105,15 +106,24 @@ export default function ServiceAgreementPage() {
 
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [validationErrors, setValidationErrors] = useState<
-    Record<string, string>
-  >({});
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  /*
+   * Bumped on every failed submit so the effect below re-runs
+   * even when the same fields fail twice in a row.
+   */
+  const [invalidFocusToken, setInvalidFocusToken] = useState(0);
 
   const [isDownloaded, setIsDownloaded] = useState(false);
 
   const totalPayable = useMemo(
     () => calculateTotal(data.feesWithoutTax, data.tax),
     [data.feesWithoutTax, data.tax],
+  );
+
+  const invalidFieldMessages = useMemo(
+    () => Object.values(fieldErrors).filter(Boolean) as string[],
+    [fieldErrors],
   );
 
   /*
@@ -132,6 +142,35 @@ export default function ServiceAgreementPage() {
 
   /*
    * ---------------------------------------------------------
+   * JUMP TO THE FIRST MISSING FIELD
+   *
+   * The highlighted field can be far below the fold, so the
+   * first one is scrolled into view and focused. The DOM is
+   * queried instead of the error object so the operator is
+   * always taken to the first field in visual order.
+   * ---------------------------------------------------------
+   */
+
+  useEffect(() => {
+    if (!invalidFocusToken) {
+      return;
+    }
+
+    const firstInvalid = document.querySelector<HTMLElement>(
+      '[aria-invalid="true"]',
+    );
+
+    if (!firstInvalid) {
+      return;
+    }
+
+    firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    firstInvalid.focus({ preventScroll: true });
+  }, [invalidFocusToken]);
+
+  /*
+   * ---------------------------------------------------------
    * UPDATE FORM DATA
    *
    * Any change after preview invalidates the old PDF.
@@ -140,9 +179,16 @@ export default function ServiceAgreementPage() {
    */
 
   const handleDataChange = (
-    fieldOrUpdatedData: keyof ServiceAgreementData | Partial<ServiceAgreementData>,
+    fieldOrUpdatedData:
+      | keyof ServiceAgreementData
+      | Partial<ServiceAgreementData>,
     value?: string,
   ) => {
+    const changedFields =
+      typeof fieldOrUpdatedData === "string"
+        ? [fieldOrUpdatedData]
+        : (Object.keys(fieldOrUpdatedData) as (keyof ServiceAgreementData)[]);
+
     const nextData =
       typeof fieldOrUpdatedData === "string"
         ? {
@@ -159,7 +205,36 @@ export default function ServiceAgreementPage() {
       totalPayable: calculateTotal(nextData.feesWithoutTax, nextData.tax),
     });
 
-    setValidationErrors({});
+    /*
+     * Clear the highlight only on the fields that were just
+     * edited. The remaining ones stay red so the operator can
+     * see what is still outstanding.
+     */
+    setFieldErrors((previous) => {
+      if (!changedFields.some((field) => previous[field])) {
+        return previous;
+      }
+
+      const next = { ...previous };
+
+      for (const field of changedFields) {
+        delete next[field];
+      }
+
+      /*
+       * Fees and taxes feed the computed total, so correcting
+       * either of them also clears the total's highlight.
+       */
+      if (
+        changedFields.includes("feesWithoutTax") ||
+        changedFields.includes("tax")
+      ) {
+        delete next.totalPayable;
+      }
+
+      return next;
+    });
+
     setErrorMessage("");
     setIsDownloaded(false);
 
@@ -181,30 +256,108 @@ export default function ServiceAgreementPage() {
    * ---------------------------------------------------------
    */
 
-  const normalizeValidationErrors = (
-    errors: string[],
-  ): Record<string, string> =>
-    errors.reduce<Record<string, string>>((acc, error, index) => {
-      acc[`error_${index}`] = error;
-      return acc;
-    }, {});
-
   const validateForm = (): boolean => {
-    const validation = validateServiceAgreement(data);
+    const validation = validateServiceAgreement({
+      ...data,
+      totalPayable,
+    });
 
     if (!validation.isValid) {
-      setValidationErrors(normalizeValidationErrors(validation.errors));
+      setFieldErrors(validation.fieldErrors);
+
+      const count = Object.keys(validation.fieldErrors).length;
+
       setErrorMessage(
-        "Please correct the highlighted information before generating the preview.",
+        `${count} field${count === 1 ? "" : "s"} need${
+          count === 1 ? "s" : ""
+        } attention. The highlighted fields below are missing or invalid.`,
       );
+
+      setInvalidFocusToken((token) => token + 1);
 
       return false;
     }
 
-    setValidationErrors({});
+    setFieldErrors({});
     setErrorMessage("");
 
     return true;
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * REQUEST ONE GENERATED PDF
+   *
+   * `highlight` asks the server for the review copy, in which
+   * every value that replaced a {Placeholder} is painted
+   * yellow. The copy without it is the one that gets
+   * downloaded.
+   * ---------------------------------------------------------
+   */
+
+  const requestPdf = async (highlight: boolean): Promise<Blob> => {
+    const response = await fetch("/api/service-agreement/generate-pdf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...data,
+        totalPayable,
+        highlight,
+      }),
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!response.ok) {
+      let message = "Unable to generate the Service Agreement preview.";
+
+      if (contentType.includes("application/json")) {
+        try {
+          const result = await response.json();
+
+          if (result?.message) {
+            message = result.message;
+          }
+
+          /*
+           * The server runs the same validation, so a
+           * rejection can highlight the fields too.
+           */
+          if (result?.fieldErrors) {
+            setFieldErrors(result.fieldErrors as FieldErrors);
+            setInvalidFocusToken((token) => token + 1);
+          }
+        } catch {
+          // Keep the default message.
+        }
+      } else {
+        try {
+          const text = await response.text();
+
+          if (text.trim()) {
+            message = text;
+          }
+        } catch {
+          // Keep the default message.
+        }
+      }
+
+      throw new Error(message);
+    }
+
+    if (!contentType.includes("application/pdf")) {
+      throw new Error("The server did not return a PDF file.");
+    }
+
+    const blob = await response.blob();
+
+    if (!blob.size) {
+      throw new Error("The generated PDF is empty.");
+    }
+
+    return blob;
   };
 
   /*
@@ -241,70 +394,29 @@ export default function ServiceAgreementPage() {
       setPdfBlob(null);
 
       /*
-       * Generate the ACTUAL final PDF.
+       * Generate the ACTUAL final PDF, twice.
        *
-       * This uses the same backend route that generates
-       * the final Service Agreement from the master DOCX.
+       * Both copies come from the same backend route and the
+       * same data, in the same moment:
+       *
+       * - the review copy, with the filled values in yellow,
+       *   is what the operator inspects on screen
+       * - the clean copy is kept in memory and is what the
+       *   Confirm & Download button hands over
+       *
+       * They are requested in parallel so the clean copy is
+       * ready the instant the operator confirms, without
+       * re-generating anything from possibly changed data.
        */
 
-      const response = await fetch("/api/service-agreement/generate-pdf", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...data,
-          totalPayable,
-        }),
-      });
+      const [reviewBlob, cleanBlob] = await Promise.all([
+        requestPdf(true),
+        requestPdf(false),
+      ]);
 
-      const contentType = response.headers.get("content-type") || "";
+      const objectUrl = URL.createObjectURL(reviewBlob);
 
-      if (!response.ok) {
-        let message = "Unable to generate the Service Agreement preview.";
-
-        if (contentType.includes("application/json")) {
-          try {
-            const result = await response.json();
-
-            if (result?.message) {
-              message = result.message;
-            }
-
-            if (result?.errors) {
-              setValidationErrors(result.errors);
-            }
-          } catch {
-            // Keep the default message.
-          }
-        } else {
-          try {
-            const text = await response.text();
-
-            if (text.trim()) {
-              message = text;
-            }
-          } catch {
-            // Keep the default message.
-          }
-        }
-
-        throw new Error(message);
-      }
-
-      if (!contentType.includes("application/pdf")) {
-        throw new Error("The server did not return a PDF file.");
-      }
-
-      const blob = await response.blob();
-
-      if (!blob.size) {
-        throw new Error("The generated PDF is empty.");
-      }
-
-      const objectUrl = URL.createObjectURL(blob);
-
-      setPdfBlob(blob);
+      setPdfBlob(cleanBlob);
       setPdfUrl(objectUrl);
       setShowDocumentPreview(true);
     } catch (error) {
@@ -348,7 +460,9 @@ export default function ServiceAgreementPage() {
    * IMPORTANT:
    * Do NOT call the API again.
    *
-   * The preview PDF is already the final generated PDF.
+   * pdfBlob already holds the clean copy generated alongside
+   * the review copy, so what is downloaded carries no review
+   * highlighting and matches the data that was inspected.
    * ---------------------------------------------------------
    */
 
@@ -427,20 +541,48 @@ export default function ServiceAgreementPage() {
               <p className="text-sm font-semibold text-red-800">
                 {errorMessage}
               </p>
+
+              {invalidFieldMessages.length > 0 ? (
+                <ul className="mt-2 max-h-48 list-disc space-y-1 overflow-y-auto pl-5 text-xs text-red-700">
+                  {invalidFieldMessages.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 
           {/* Form Sections */}
           <div className="space-y-5">
-            <CustomerForm data={data} onChange={handleDataChange} />
+            <CustomerForm
+              data={data}
+              onChange={handleDataChange}
+              errors={fieldErrors}
+            />
 
-            <PlanForm data={data} onChange={handleDataChange} />
+            <PlanForm
+              data={data}
+              onChange={handleDataChange}
+              errors={fieldErrors}
+            />
 
-            <PaymentForm data={data} onChange={handleDataChange} />
+            <PaymentForm
+              data={data}
+              onChange={handleDataChange}
+              errors={fieldErrors}
+            />
 
-            <VerificationForm data={data} onChange={handleDataChange} />
+            <VerificationForm
+              data={data}
+              onChange={handleDataChange}
+              errors={fieldErrors}
+            />
 
-            <WitnessForm data={data} onChange={handleDataChange} />
+            <WitnessForm
+              data={data}
+              onChange={handleDataChange}
+              errors={fieldErrors}
+            />
 
             {/* Preview Action */}
             <div className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-6">
@@ -477,11 +619,12 @@ export default function ServiceAgreementPage() {
                 </button>
               </div>
 
-              {Object.keys(validationErrors).length > 0 ? (
-                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-semibold text-amber-900">
-                    Some required information is missing or invalid. Please
-                    review the form above.
+              {invalidFieldMessages.length > 0 ? (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-xs font-semibold text-red-800">
+                    {invalidFieldMessages.length} highlighted field
+                    {invalidFieldMessages.length === 1 ? "" : "s"} above still
+                    need to be corrected.
                   </p>
                 </div>
               ) : null}
@@ -501,6 +644,18 @@ export default function ServiceAgreementPage() {
   return (
     <main className="min-h-screen bg-gray-100 px-3 py-4 sm:px-5 sm:py-6">
       <div className="mx-auto max-w-[1500px]">
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm text-amber-900">
+            <span className="mr-2 rounded bg-yellow-300 px-1.5 py-0.5 font-semibold text-amber-950">
+              Highlighted
+            </span>
+            Everything marked yellow is a value taken from the form. It is a
+            review aid only. Use the <strong>Confirm &amp; Download</strong>{" "}
+            button below to save the agreement &mdash; that copy is clean, with
+            no highlighting.
+          </p>
+        </div>
+
         <DocumentPreview
           data={data}
           pdfUrl={pdfUrl}

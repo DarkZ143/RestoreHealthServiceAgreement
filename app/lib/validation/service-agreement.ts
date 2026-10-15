@@ -1,8 +1,24 @@
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 
+/**
+ * Validation messages keyed by the form field they belong to.
+ *
+ * The form uses these keys to highlight the offending input in
+ * red, so every message must be attached to the field the
+ * operator actually has to correct.
+ */
+export type FieldErrors = Partial<Record<keyof ServiceAgreementData, string>>;
+
 export interface ValidationResult {
   isValid: boolean;
+
+  /**
+   * Flat list of messages, kept for the API responses and for
+   * the summary banner above the form.
+   */
   errors: string[];
+
+  fieldErrors: FieldErrors;
 }
 
 function isValidDate(value: string): boolean {
@@ -34,12 +50,29 @@ export function validateServiceAgreement(
 ): ValidationResult {
   const errors: string[] = [];
 
+  const fieldErrors: FieldErrors = {};
+
+  /**
+   * Records a problem against a single form field.
+   *
+   * Only the first problem per field is kept: a field shows one
+   * message at a time, and the first one is always the most
+   * specific reason it failed.
+   */
+  const addError = (field: keyof ServiceAgreementData, message: string) => {
+    errors.push(message);
+
+    if (!fieldErrors[field]) {
+      fieldErrors[field] = message;
+    }
+  };
+
   // =========================
   // AGREEMENT
   // =========================
 
   if (!data.agreementNumber.trim()) {
-    errors.push("Agreement Number is required.");
+    addError("agreementNumber", "Agreement Number is required.");
   }
 
   // =========================
@@ -47,55 +80,59 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.customerName.trim()) {
-    errors.push("Customer Name is required.");
+    addError("customerName", "Customer Name is required.");
   }
 
   if (!data.customerAge.trim()) {
-    errors.push("Customer Age is required.");
+    addError("customerAge", "Customer Age is required.");
   } else {
     const age = Number(data.customerAge);
 
     if (!Number.isFinite(age) || age < 18 || age > 120) {
-      errors.push("Customer Age must be between 18 and 120.");
+      addError("customerAge", "Customer Age must be between 18 and 120.");
     }
   }
 
   if (!data.customerDateOfBirth.trim()) {
-    errors.push("Customer Date of Birth is required.");
+    addError("customerDateOfBirth", "Customer Date of Birth is required.");
   } else if (!isValidDate(data.customerDateOfBirth)) {
-    errors.push("Customer Date of Birth is invalid.");
+    addError("customerDateOfBirth", "Customer Date of Birth is invalid.");
   }
 
   if (!/^\d{4}$/.test(data.customerAadharLastFour)) {
-    errors.push("Aadhaar Last 4 Digits must contain exactly 4 digits.");
+    addError(
+      "customerAadharLastFour",
+      "Aadhaar Last 4 Digits must contain exactly 4 digits.",
+    );
   }
 
   if (!data.fullAddressCustomer.trim()) {
-    errors.push("Full Residential Address is required.");
+    addError("fullAddressCustomer", "Full Residential Address is required.");
   }
 
   if (!data.customerPhone.trim()) {
-    errors.push("Customer Mobile Number is required.");
+    addError("customerPhone", "Customer Mobile Number is required.");
   } else if (!/^[6-9]\d{9}$/.test(data.customerPhone.trim())) {
-    errors.push(
+    addError(
+      "customerPhone",
       "Customer Mobile Number must be a valid 10-digit Indian mobile number.",
     );
   }
 
   if (!data.customerMail.trim()) {
-    errors.push("Customer Email Address is required.");
+    addError("customerMail", "Customer Email Address is required.");
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customerMail.trim())) {
-    errors.push("Customer Email Address is invalid.");
+    addError("customerMail", "Customer Email Address is invalid.");
   }
 
   if (!data.customerPlace.trim()) {
-    errors.push("Customer Place is required.");
+    addError("customerPlace", "Customer Place is required.");
   }
 
   if (!data.customerDate.trim()) {
-    errors.push("Customer Date is required.");
+    addError("customerDate", "Customer Date is required.");
   } else if (!isValidDate(data.customerDate)) {
-    errors.push("Customer Date is invalid.");
+    addError("customerDate", "Customer Date is invalid.");
   }
 
   // =========================
@@ -114,11 +151,17 @@ export function validateServiceAgreement(
    */
 
   if (data.payerName.trim() && !data.relationship.trim()) {
-    errors.push("Relationship is required when Payer Name is provided.");
+    addError(
+      "relationship",
+      "Relationship is required when Payer Name is provided.",
+    );
   }
 
   if (!data.payerName.trim() && data.relationship.trim()) {
-    errors.push("Payer Name is required when Relationship is provided.");
+    addError(
+      "payerName",
+      "Payer Name is required when Relationship is provided.",
+    );
   }
 
   // =========================
@@ -126,23 +169,23 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.planName.trim()) {
-    errors.push("Plan Name is required.");
+    addError("planName", "Plan Name is required.");
   }
 
   if (!data.planNumber.trim()) {
-    errors.push("Plan Number is required.");
+    addError("planNumber", "Plan Number is required.");
   }
 
   if (!data.issueDate.trim()) {
-    errors.push("Issue Date is required.");
+    addError("issueDate", "Issue Date is required.");
   } else if (!isValidDate(data.issueDate)) {
-    errors.push("Issue Date is invalid.");
+    addError("issueDate", "Issue Date is invalid.");
   }
 
   if (!data.validityDate.trim()) {
-    errors.push("Validity Date is required.");
+    addError("validityDate", "Validity Date is required.");
   } else if (!isValidDate(data.validityDate)) {
-    errors.push("Validity Date is invalid.");
+    addError("validityDate", "Validity Date is invalid.");
   }
 
   if (
@@ -156,20 +199,23 @@ export function validateServiceAgreement(
     const validityDate = new Date(`${data.validityDate}T00:00:00`);
 
     if (validityDate < issueDate) {
-      errors.push("Validity Date cannot be earlier than Issue Date.");
+      addError(
+        "validityDate",
+        "Validity Date cannot be earlier than Issue Date.",
+      );
     }
   }
 
   if (!isValidAmount(data.feesWithoutTax)) {
-    errors.push("Fees Without Tax must be a valid amount.");
+    addError("feesWithoutTax", "Fees Without Tax must be a valid amount.");
   }
 
   if (!isValidAmount(data.tax)) {
-    errors.push("Tax must be a valid amount.");
+    addError("tax", "Tax must be a valid amount.");
   }
 
   if (!isValidAmount(data.totalPayable)) {
-    errors.push("Total Payable must be a valid amount.");
+    addError("totalPayable", "Total Payable must be a valid amount.");
   }
 
   // =========================
@@ -177,27 +223,27 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.utr.trim()) {
-    errors.push("Payment Reference / UTR is required.");
+    addError("utr", "Payment Reference / UTR is required.");
   }
 
   if (!data.paymentDate.trim()) {
-    errors.push("Payment Date is required.");
+    addError("paymentDate", "Payment Date is required.");
   } else if (!isValidDate(data.paymentDate)) {
-    errors.push("Payment Date is invalid.");
+    addError("paymentDate", "Payment Date is invalid.");
   }
 
   if (!data.paymentTime.trim()) {
-    errors.push("Payment Time is required.");
+    addError("paymentTime", "Payment Time is required.");
   } else if (!isValidTime(data.paymentTime)) {
-    errors.push("Payment Time is invalid.");
+    addError("paymentTime", "Payment Time is invalid.");
   }
 
   if (!data.paymentMode.trim()) {
-    errors.push("Payment Mode is required.");
+    addError("paymentMode", "Payment Mode is required.");
   }
 
   if (!data.payee.trim()) {
-    errors.push("Payee is required.");
+    addError("payee", "Payee is required.");
   }
 
   // =========================
@@ -205,27 +251,27 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.language.trim()) {
-    errors.push("Language of Explanation is required.");
+    addError("language", "Language of Explanation is required.");
   }
 
   if (!data.agentName.trim()) {
-    errors.push("Agent / Authorized Representative is required.");
+    addError("agentName", "Agent / Authorized Representative is required.");
   }
 
   if (!data.callDate.trim()) {
-    errors.push("Verification Call Date is required.");
+    addError("callDate", "Verification Call Date is required.");
   } else if (!isValidDate(data.callDate)) {
-    errors.push("Verification Call Date is invalid.");
+    addError("callDate", "Verification Call Date is invalid.");
   }
 
   if (!data.callTime.trim()) {
-    errors.push("Verification Call Time is required.");
+    addError("callTime", "Verification Call Time is required.");
   } else if (!isValidTime(data.callTime)) {
-    errors.push("Verification Call Time is invalid.");
+    addError("callTime", "Verification Call Time is invalid.");
   }
 
   if (!data.verifierName.trim()) {
-    errors.push("Verifier Name is required.");
+    addError("verifierName", "Verifier Name is required.");
   }
 
   // =========================
@@ -233,15 +279,15 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.acceptanceDate.trim()) {
-    errors.push("Acceptance Date is required.");
+    addError("acceptanceDate", "Acceptance Date is required.");
   } else if (!isValidDate(data.acceptanceDate)) {
-    errors.push("Acceptance Date is invalid.");
+    addError("acceptanceDate", "Acceptance Date is invalid.");
   }
 
   if (!data.acceptanceTime.trim()) {
-    errors.push("Acceptance Time is required.");
+    addError("acceptanceTime", "Acceptance Time is required.");
   } else if (!isValidTime(data.acceptanceTime)) {
-    errors.push("Acceptance Time is invalid.");
+    addError("acceptanceTime", "Acceptance Time is invalid.");
   }
 
   // =========================
@@ -249,23 +295,23 @@ export function validateServiceAgreement(
   // =========================
 
   if (data.documentSent !== "Yes" && data.documentSent !== "No") {
-    errors.push("Documents Sent must be either Yes or No.");
+    addError("documentSent", "Documents Sent must be either Yes or No.");
   }
 
   if (!data.typeOfSendingPlatform.trim()) {
-    errors.push("Type of Sending Platform is required.");
+    addError("typeOfSendingPlatform", "Type of Sending Platform is required.");
   }
 
   if (!data.sentDate.trim()) {
-    errors.push("Document Sent Date is required.");
+    addError("sentDate", "Document Sent Date is required.");
   } else if (!isValidDate(data.sentDate)) {
-    errors.push("Document Sent Date is invalid.");
+    addError("sentDate", "Document Sent Date is invalid.");
   }
 
   if (!data.sentTime.trim()) {
-    errors.push("Document Sent Time is required.");
+    addError("sentTime", "Document Sent Time is required.");
   } else if (!isValidTime(data.sentTime)) {
-    errors.push("Document Sent Time is invalid.");
+    addError("sentTime", "Document Sent Time is invalid.");
   }
 
   // =========================
@@ -282,28 +328,30 @@ export function validateServiceAgreement(
   const witnesses = [
     {
       label: "Witness 1",
+      mobileField: "witness1Mobile",
+      dateField: "witness1Date",
       mobile: data.witness1Mobile,
       date: data.witness1Date,
     },
     {
       label: "Witness 2",
+      mobileField: "witness2Mobile",
+      dateField: "witness2Date",
       mobile: data.witness2Mobile,
       date: data.witness2Date,
     },
-  ];
+  ] as const;
 
   for (const witness of witnesses) {
-    if (
-      witness.mobile.trim() &&
-      !/^[6-9]\d{9}$/.test(witness.mobile.trim())
-    ) {
-      errors.push(
+    if (witness.mobile.trim() && !/^[6-9]\d{9}$/.test(witness.mobile.trim())) {
+      addError(
+        witness.mobileField,
         `${witness.label} Mobile Number must be a valid 10-digit Indian mobile number.`,
       );
     }
 
     if (witness.date.trim() && !isValidDate(witness.date)) {
-      errors.push(`${witness.label} Date is invalid.`);
+      addError(witness.dateField, `${witness.label} Date is invalid.`);
     }
   }
 
@@ -312,25 +360,25 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.effectiveDate.trim()) {
-    errors.push("Effective Date is required.");
+    addError("effectiveDate", "Effective Date is required.");
   } else if (!isValidDate(data.effectiveDate)) {
-    errors.push("Effective Date is invalid.");
+    addError("effectiveDate", "Effective Date is invalid.");
   }
 
   if (!data.executionDate.trim()) {
-    errors.push("Execution / Signing Date is required.");
+    addError("executionDate", "Execution / Signing Date is required.");
   } else if (!isValidDate(data.executionDate)) {
-    errors.push("Execution / Signing Date is invalid.");
+    addError("executionDate", "Execution / Signing Date is invalid.");
   }
 
   if (!data.executionTime.trim()) {
-    errors.push("Execution / Signing Time is required.");
+    addError("executionTime", "Execution / Signing Time is required.");
   } else if (!isValidTime(data.executionTime)) {
-    errors.push("Execution / Signing Time is invalid.");
+    addError("executionTime", "Execution / Signing Time is invalid.");
   }
 
   if (data.executionAmPm !== "AM" && data.executionAmPm !== "PM") {
-    errors.push("Execution AM/PM must be either AM or PM.");
+    addError("executionAmPm", "Execution AM/PM must be either AM or PM.");
   }
 
   // =========================
@@ -338,14 +386,16 @@ export function validateServiceAgreement(
   // =========================
 
   if (!data.currentDate.trim()) {
-    errors.push("Current / Document Date is required.");
+    addError("currentDate", "Current / Document Date is required.");
   } else if (!isValidDate(data.currentDate)) {
-    errors.push("Current / Document Date is invalid.");
+    addError("currentDate", "Current / Document Date is invalid.");
   }
 
   return {
     isValid: errors.length === 0,
 
     errors,
+
+    fieldErrors,
   };
 }

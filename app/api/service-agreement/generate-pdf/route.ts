@@ -24,6 +24,13 @@ import type { ServiceAgreementData } from "@/app/types/service-agreement";
 
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
 
+import { describeTemplateError } from "@/app/lib/docx/template-error";
+
+import {
+  applyHighlightMarkers,
+  markFilledValues,
+} from "@/app/lib/docx/highlight";
+
 import { convertDocxToPdfWithConvertApi } from "@/app/lib/pdf/convertapi";
 
 
@@ -63,6 +70,22 @@ function witnessField(value: string, blankRule: string): string {
   return value.trim() || blankRule;
 
 }
+
+
+
+/*
+
+ * Every blank rule the witness fields can fall back to.
+
+ *
+
+ * The review highlight skips these: they mark an empty
+
+ * optional field, not something the operator filled in.
+
+ */
+
+const WITNESS_BLANK_RULES = ["______", "_____", "____", "__//__"] as const;
 
 
 
@@ -432,6 +455,8 @@ async function generateDocx(
 
   outputPath: string,
 
+  highlight: boolean,
+
 ): Promise<void> {
 
   const templatePath = path.join(
@@ -518,13 +543,31 @@ async function generateDocx(
 
    */
 
-  const document = new Docxtemplater(zip, {
+  let document: Docxtemplater;
 
-    paragraphLoop: true,
+  try {
 
-    linebreaks: true,
+    document = new Docxtemplater(zip, {
 
-  });
+      paragraphLoop: true,
+
+      linebreaks: true,
+
+    });
+
+  } catch (error) {
+
+    /**
+
+     * Docxtemplater bundles compilation problems into a
+
+     * single "Multi error"; name the broken placeholder.
+
+     */
+
+    throw new Error(describeTemplateError(error) ?? String(error));
+
+  }
 
 
 
@@ -542,7 +585,25 @@ async function generateDocx(
 
    */
 
-  document.render(buildTemplateData(data));
+  const templateValues = buildTemplateData(data);
+
+  try {
+
+    document.render(
+
+      highlight
+
+        ? markFilledValues(templateValues, WITNESS_BLANK_RULES)
+
+        : templateValues,
+
+    );
+
+  } catch (error) {
+
+    throw new Error(describeTemplateError(error) ?? String(error));
+
+  }
 
 
 
@@ -554,13 +615,33 @@ async function generateDocx(
 
 
 
+  const zipOutput = document.getZip();
+
+
+
+  /**
+
+   * Paint the filled-in values yellow for the on-screen
+
+   * review copy. The downloaded copy skips this entirely.
+
+   */
+
+  if (highlight) {
+
+    applyHighlightMarkers(zipOutput);
+
+  }
+
+
+
   /**
 
    * Generate output DOCX buffer.
 
    */
 
-  const outputBuffer = document.getZip().generate({
+  const outputBuffer = zipOutput.generate({
 
     type: "nodebuffer",
 
@@ -1466,11 +1547,29 @@ export async function POST(request: Request) {
 
     const body =
 
-      (await request.json()) as Partial<ServiceAgreementData>;
+      (await request.json()) as Partial<ServiceAgreementData> & {
+
+        highlight?: boolean;
+
+      };
 
 
 
     const data = body as ServiceAgreementData;
+
+
+
+    /**
+
+     * The review copy shown in the preview marks every filled
+
+     * value in yellow. The copy the operator downloads is
+
+     * generated from the same data without it.
+
+     */
+
+    const highlight = body.highlight === true;
 
 
 
@@ -1547,6 +1646,8 @@ export async function POST(request: Request) {
             "Please correct the following validation errors.",
 
           errors: validation.errors,
+
+          fieldErrors: validation.fieldErrors,
 
           requestId,
 
@@ -1679,6 +1780,8 @@ export async function POST(request: Request) {
       data,
 
       docxPath,
+
+      highlight,
 
     );
 
@@ -2026,7 +2129,13 @@ export async function POST(request: Request) {
 
      */
 
-    if (error instanceof Error) {
+    const description = describeTemplateError(error);
+
+    if (description) {
+
+      message = description;
+
+    } else if (error instanceof Error) {
 
       message = error.message;
 
