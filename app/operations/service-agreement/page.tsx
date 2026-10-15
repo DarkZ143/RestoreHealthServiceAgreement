@@ -8,6 +8,7 @@ import PaymentForm from "@/app/components/service-agreement/PaymentForm";
 import VerificationForm from "@/app/components/service-agreement/VerificationForm";
 import WitnessForm from "@/app/components/service-agreement/WitnessForm";
 import DocumentPreview from "@/app/components/service-agreement/DocumentPreview";
+import Image from "next/image";
 
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import type { FieldErrors } from "@/app/lib/validation/service-agreement";
@@ -519,7 +520,7 @@ export default function ServiceAgreementPage() {
                   Restore Health Services <span className="text-white/40">/</span> Operations
                 </div>
                 <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-[42px]">
-                  Service Agreement
+                  Service Agreement <Image src="/Logo.png" alt="Lock icon" width={28} height={28} className="inline-block" />
                   <span className="mt-1 block text-emerald-200">Document workspace</span>
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-6 text-emerald-50/75 sm:text-base">
