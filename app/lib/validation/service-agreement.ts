@@ -1,4 +1,10 @@
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
+import {
+  calculateAge,
+  getDateYearsAgo,
+  getTodayDateString,
+  isValidIsoDate,
+} from "@/app/lib/validation/dates";
 
 /**
  * Validation messages keyed by the form field they belong to.
@@ -22,14 +28,27 @@ export interface ValidationResult {
 }
 
 function isValidDate(value: string): boolean {
-  if (!value) {
-    return false;
-  }
-
-  const date = new Date(`${value}T00:00:00`);
-
-  return !Number.isNaN(date.getTime());
+  return isValidIsoDate(value);
 }
+
+const DATE_FIELDS: {
+  field: keyof ServiceAgreementData;
+  label: string;
+  allowsFuture?: boolean;
+}[] = [
+  { field: "customerDate", label: "Customer Date" },
+  { field: "issueDate", label: "Issue Date" },
+  { field: "validityDate", label: "Validity Date", allowsFuture: true },
+  { field: "paymentDate", label: "Payment Date" },
+  { field: "callDate", label: "Verification Call Date" },
+  { field: "acceptanceDate", label: "Acceptance Date" },
+  { field: "sentDate", label: "Document Sent Date" },
+  { field: "witness1Date", label: "Witness 1 Date" },
+  { field: "witness2Date", label: "Witness 2 Date" },
+  { field: "effectiveDate", label: "Effective Date" },
+  { field: "executionDate", label: "Execution / Signing Date" },
+  { field: "currentDate", label: "Current / Document Date" },
+];
 
 function isValidTime(value: string): boolean {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
@@ -88,8 +107,8 @@ export function validateServiceAgreement(
   } else {
     const age = Number(data.customerAge);
 
-    if (!Number.isFinite(age) || age < 18 || age > 120) {
-      addError("customerAge", "Customer Age must be between 18 and 120.");
+    if (!Number.isInteger(age) || age < 18 || age > 150) {
+      addError("customerAge", "Customer Age must be a whole number between 18 and 150.");
     }
   }
 
@@ -97,6 +116,26 @@ export function validateServiceAgreement(
     addError("customerDateOfBirth", "Customer Date of Birth is required.");
   } else if (!isValidDate(data.customerDateOfBirth)) {
     addError("customerDateOfBirth", "Customer Date of Birth is invalid.");
+  } else {
+    const today = getTodayDateString();
+    const youngestAllowedDob = getDateYearsAgo(today, 18);
+    const oldestAllowedDob = getDateYearsAgo(today, 150);
+
+    if (
+      data.customerDateOfBirth > youngestAllowedDob ||
+      data.customerDateOfBirth < oldestAllowedDob
+    ) {
+      addError(
+        "customerDateOfBirth",
+        "Customer must be between 18 and 150 years old.",
+      );
+    } else if (
+      data.customerAge.trim() &&
+      Number.isInteger(Number(data.customerAge)) &&
+      Number(data.customerAge) !== calculateAge(data.customerDateOfBirth, today)
+    ) {
+      addError("customerAge", "Customer Age must match the Date of Birth.");
+    }
   }
 
   if (!/^\d{4}$/.test(data.customerAadharLastFour)) {
@@ -389,6 +428,22 @@ export function validateServiceAgreement(
     addError("currentDate", "Current / Document Date is required.");
   } else if (!isValidDate(data.currentDate)) {
     addError("currentDate", "Current / Document Date is invalid.");
+  }
+
+  const today = getTodayDateString();
+
+  for (const dateField of DATE_FIELDS) {
+    const value = data[dateField.field];
+
+    if (
+      typeof value === "string" &&
+      value.trim() &&
+      isValidDate(value) &&
+      !dateField.allowsFuture &&
+      value > today
+    ) {
+      addError(dateField.field, `${dateField.label} cannot be after today.`);
+    }
   }
 
   return {

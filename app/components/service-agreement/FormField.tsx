@@ -4,6 +4,10 @@ import type { ChangeEvent } from "react";
 
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import type { FieldErrors } from "@/app/lib/validation/service-agreement";
+import {
+  getDateYearsAgo,
+  getTodayDateString,
+} from "@/app/lib/validation/dates";
 
 export type { FieldErrors };
 
@@ -41,6 +45,7 @@ interface FormFieldProps {
   options?: SelectOption[];
   rows?: number;
   min?: string;
+  max?: string;
   step?: string;
   maxLength?: number;
   inputMode?: "numeric" | "text";
@@ -61,10 +66,10 @@ interface FormFieldProps {
 }
 
 const CONTROL_BASE =
-  "w-full rounded-lg border text-sm outline-none transition";
+  "w-full rounded-xl border bg-white text-sm text-slate-900 outline-none transition duration-150 placeholder:text-slate-400";
 
 const CONTROL_VALID =
-  "border-gray-300 text-gray-900 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
+  "border-slate-200 shadow-sm hover:border-slate-300 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100/80";
 
 /*
  * The invalid state has to survive next to the valid classes
@@ -72,7 +77,7 @@ const CONTROL_VALID =
  * text and ring colour) is restated here.
  */
 const CONTROL_INVALID =
-  "border-red-500 bg-red-50 text-red-900 placeholder-red-400 focus:border-red-600 focus:ring-2 focus:ring-red-200";
+  "border-rose-400 bg-rose-50/70 text-rose-950 placeholder:text-rose-300 focus:border-rose-500 focus:ring-4 focus:ring-rose-100";
 
 function controlClassName(hasError: boolean, extra: string): string {
   return [
@@ -96,6 +101,7 @@ export default function FormField({
   options,
   rows = 3,
   min,
+  max,
   step,
   maxLength,
   inputMode,
@@ -104,6 +110,30 @@ export default function FormField({
   inputClassName,
 }: FormFieldProps) {
   const hasError = Boolean(error);
+
+  const today = type === "date" ? getTodayDateString() : undefined;
+  const dateMin =
+    type === "date" && field === "customerDateOfBirth"
+      ? getDateYearsAgo(today ?? "", 150)
+      : min;
+  const dateMax =
+    max ??
+    (type === "date"
+      ? field === "customerDateOfBirth"
+        ? getDateYearsAgo(today ?? "", 18)
+        : field === "validityDate"
+          ? undefined
+          : today
+      : undefined);
+  const visibleHint =
+    hint ??
+    (type === "date"
+      ? field === "customerDateOfBirth"
+        ? "Customer must be between 18 and 150 years old."
+        : field === "validityDate"
+          ? "Can be a future date; must be on or after the issue date."
+          : "Future dates are not allowed."
+      : undefined);
 
   const errorId = `${field}-error`;
 
@@ -129,7 +159,7 @@ export default function FormField({
    * A prefixed control needs extra left padding so the text
    * does not run into the prefix glyph.
    */
-  const padding = inputClassName ?? (prefix ? "py-2.5 pl-8 pr-3" : "px-3 py-2.5");
+  const padding = inputClassName ?? (prefix ? "py-3 pl-9 pr-3" : "px-3.5 py-3");
 
   const sharedProps = {
     id: field,
@@ -143,8 +173,8 @@ export default function FormField({
     <div className={wrapperClassName}>
       <label
         htmlFor={field}
-        className={`mb-1.5 block text-sm font-medium ${
-          hasError ? "text-red-700" : "text-gray-700"
+        className={`mb-2 block text-[13px] font-semibold tracking-[0.01em] ${
+          hasError ? "text-rose-800" : "text-slate-700"
         }`}
       >
         {label}
@@ -153,8 +183,8 @@ export default function FormField({
       <div className={prefix ? "relative" : undefined}>
         {prefix ? (
           <span
-            className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm ${
-              hasError ? "text-red-500" : "text-gray-500"
+            className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium ${
+              hasError ? "text-rose-500" : "text-slate-500"
             }`}
           >
             {prefix}
@@ -191,7 +221,8 @@ export default function FormField({
             {...sharedProps}
             type={type}
             placeholder={placeholder}
-            min={min}
+            min={dateMin}
+            max={dateMax}
             step={step}
             maxLength={maxLength}
             inputMode={inputMode}
@@ -203,13 +234,13 @@ export default function FormField({
       {hasError ? (
         <p
           id={errorId}
-          className="mt-1.5 flex items-start gap-1 text-xs font-semibold text-red-600"
+          className="mt-2 flex items-start gap-1.5 text-xs font-medium text-rose-700"
         >
-          <span aria-hidden="true">⚠</span>
+          <span aria-hidden="true">{"\u26A0"}</span>
           {error}
         </p>
-      ) : hint ? (
-        <p className="mt-1.5 text-xs text-gray-500">{hint}</p>
+      ) : visibleHint ? (
+        <p className="mt-2 text-xs leading-5 text-slate-500">{visibleHint}</p>
       ) : null}
     </div>
   );

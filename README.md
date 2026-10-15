@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Service Agreement Generator
 
-## Getting Started
+Next.js app for filling the Restore Health Services agreement template, previewing the generated PDF, and downloading the approved copy.
 
-First, run the development server:
+## Run locally
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## PDF conversion setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+DOCX files are converted to PDF by ConvertAPI. The app server sends the generated agreement DOCX to ConvertAPI and downloads the resulting PDF. No LibreOffice binary is required on the host.
 
-## Learn More
+1. Create an API token in the [ConvertAPI dashboard](https://www.convertapi.com/a/authentication).
+2. Set `CONVERTAPI_API_TOKEN` as a server-side environment variable for local development and in the production hosting dashboard.
+3. Redeploy after adding or changing the production variable.
 
-To learn more about Next.js, take a look at the following resources:
+Keep this token private: do not prefix it with `NEXT_PUBLIC_` or commit it to the repository. ConvertAPI currently advertises 250 free conversions for new accounts; check its [current plans and pricing](https://www.convertapi.com/pricing) before production use. Each Preview Agreement action performs one conversion.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Data handling:** agreement details, including customer contact information and the last four digits of Aadhaar, are included in the generated DOCX sent to ConvertAPI for rendering. Review the provider's [privacy and data processing terms](https://www.convertapi.com/static/docs/compliance/CONVERTAPI_PRIVACY_POLICY_AND_DATA_PROCESSING_TERMS.pdf) before using real customer records.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Validation rules
 
-## Deploy on Vercel
+- Every date must be today or earlier, except Validity Date.
+- Validity Date may be in the future and cannot be before Issue Date.
+- Date of Birth must make the customer 18–150 years old. Customer Age must be a whole number and match the entered Date of Birth.
+- The same validation runs in the browser and on both document-generation API routes.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The current date is evaluated in the `Asia/Kolkata` timezone.

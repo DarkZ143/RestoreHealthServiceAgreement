@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Restore Health Services - Service Agreement Generator",
-  description: "Created by DarkZ143",
+  title: "Restore Health Services | Service Agreements",
+  description:
+    "Create, validate, preview, and download Restore Health Services agreements.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

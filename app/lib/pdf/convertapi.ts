@@ -41,15 +41,16 @@ const DOCX_CONTENT_TYPE =
 /**
  * Shape of the ConvertAPI JSON response.
  *
- * With StoreFile=true each entry carries a "Url" that has to be
- * downloaded. Without it, ConvertAPI inlines the PDF as base64
- * in "FileData". Both shapes are handled.
+ * With StoreFile=true each entry carries a "FileUrl". This app
+ * requests inline FileData to avoid storing generated agreements
+ * with the provider, while still accepting either response shape.
  */
 type ConvertApiFile = {
   FileName?: string;
   FileExt?: string;
   FileSize?: number;
   FileId?: string;
+  FileUrl?: string;
   Url?: string;
   FileData?: string;
 };
@@ -71,8 +72,8 @@ function getConvertApiToken(): string {
   if (!token) {
     throw new Error(
       "PDF conversion is not configured. " +
-        "Please set CONVERTAPI_API_TOKEN in the server environment " +
-        "(Netlify: Site configuration -> Environment variables).",
+        "Please set CONVERTAPI_API_TOKEN in your hosting provider's " +
+        "server environment variables.",
     );
   }
 
@@ -225,8 +226,8 @@ export async function convertDocxToPdfWithConvertApi(
    *
    * The file field name must be "File".
    *
-   * StoreFile=true makes ConvertAPI return a downloadable URL
-   * instead of inlining the PDF as base64.
+   * StoreFile=false returns the small agreement PDF inline and
+   * avoids creating a provider-hosted output file.
    */
   const formData = new FormData();
 
@@ -238,7 +239,7 @@ export async function convertDocxToPdfWithConvertApi(
     fileName,
   );
 
-  formData.append("StoreFile", "true");
+  formData.append("StoreFile", "false");
 
   const controller = new AbortController();
 
@@ -334,8 +335,10 @@ export async function convertDocxToPdfWithConvertApi(
    */
   let pdfBuffer: Buffer;
 
-  if (pdfFile.Url) {
-    pdfBuffer = await downloadPdf(pdfFile.Url);
+  const fileUrl = pdfFile.FileUrl ?? pdfFile.Url;
+
+  if (fileUrl) {
+    pdfBuffer = await downloadPdf(fileUrl);
   } else if (pdfFile.FileData) {
     /**
      * StoreFile was not honoured and the PDF came back inline

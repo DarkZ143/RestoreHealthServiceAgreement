@@ -93,6 +93,30 @@ function calculateTotal(feesWithoutTax: string, tax: string): string {
   return (fees + taxAmount).toFixed(2);
 }
 
+function SectionHeading({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mb-6 flex items-start gap-3.5 border-b border-slate-100 pb-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-xs font-bold tracking-wide text-emerald-800 ring-1 ring-emerald-100">
+        {number}
+      </span>
+      <div>
+        <h2 className="text-base font-semibold tracking-tight text-slate-950 sm:text-lg">
+          {title}
+        </h2>
+        <p className="mt-1 text-sm leading-5 text-slate-500">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function ServiceAgreementPage() {
   const [data, setData] = useState<ServiceAgreementData>(initialData);
 
@@ -288,14 +312,12 @@ export default function ServiceAgreementPage() {
    * ---------------------------------------------------------
    * REQUEST ONE GENERATED PDF
    *
-   * `highlight` asks the server for the review copy, in which
-   * every value that replaced a {Placeholder} is painted
-   * yellow. The copy without it is the one that gets
-   * downloaded.
+   * The returned PDF is used for both the on-screen review and
+   * the final download, so the provider only converts once.
    * ---------------------------------------------------------
    */
 
-  const requestPdf = async (highlight: boolean): Promise<Blob> => {
+  const requestPdf = async (): Promise<Blob> => {
     const response = await fetch("/api/service-agreement/generate-pdf", {
       method: "POST",
       headers: {
@@ -304,7 +326,7 @@ export default function ServiceAgreementPage() {
       body: JSON.stringify({
         ...data,
         totalPayable,
-        highlight,
+        highlight: false,
       }),
     });
 
@@ -393,30 +415,11 @@ export default function ServiceAgreementPage() {
 
       setPdfBlob(null);
 
-      /*
-       * Generate the ACTUAL final PDF, twice.
-       *
-       * Both copies come from the same backend route and the
-       * same data, in the same moment:
-       *
-       * - the review copy, with the filled values in yellow,
-       *   is what the operator inspects on screen
-       * - the clean copy is kept in memory and is what the
-       *   Confirm & Download button hands over
-       *
-       * They are requested in parallel so the clean copy is
-       * ready the instant the operator confirms, without
-       * re-generating anything from possibly changed data.
-       */
+      // One provider conversion supplies both the on-screen preview and download.
+      const generatedBlob = await requestPdf();
+      const objectUrl = URL.createObjectURL(generatedBlob);
 
-      const [reviewBlob, cleanBlob] = await Promise.all([
-        requestPdf(true),
-        requestPdf(false),
-      ]);
-
-      const objectUrl = URL.createObjectURL(reviewBlob);
-
-      setPdfBlob(cleanBlob);
+      setPdfBlob(generatedBlob);
       setPdfUrl(objectUrl);
       setShowDocumentPreview(true);
     } catch (error) {
@@ -503,41 +506,64 @@ export default function ServiceAgreementPage() {
 
   if (!showDocumentPreview) {
     return (
-      <main className="min-h-screen bg-gray-50 px-4 py-6 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-[#f4f7f5] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
         <div className="mx-auto max-w-7xl">
           {/* Header */}
-          <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-600">
-                  Operations
-                </p>
-
-                <h1 className="text-2xl font-bold text-gray-950 sm:text-3xl">
+          <div className="relative isolate mb-6 overflow-hidden rounded-[28px] bg-[#123b32] px-6 py-7 text-white shadow-[0_20px_60px_-28px_rgba(13,66,52,0.65)] sm:px-9 sm:py-9">
+            <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-36 h-96 w-96 rounded-full bg-emerald-300/10 blur-3xl" />
+            <div aria-hidden="true" className="pointer-events-none absolute -bottom-44 left-1/3 h-80 w-80 rounded-full bg-teal-200/10 blur-3xl" />
+            <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                  Restore Health Services <span className="text-white/40">/</span> Operations
+                </div>
+                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl lg:text-[42px]">
                   Service Agreement
+                  <span className="mt-1 block text-emerald-200">Document workspace</span>
                 </h1>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  Complete the agreement information and review the actual
-                  generated document before downloading.
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-emerald-50/75 sm:text-base">
+                  Enter the agreement details, check every field, then review the finished PDF before downloading it.
                 </p>
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {["DOCX template", "Cloud PDF conversion", "Validated before export"].map((item) => (
+                    <span key={item} className="rounded-full border border-white/10 bg-black/10 px-3 py-1.5 text-xs font-medium text-white/80">{item}</span>
+                  ))}
+                </div>
               </div>
-
-              <div className="rounded-xl bg-emerald-50 px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-600">
-                  Current Agreement
-                </p>
-
-                <p className="mt-1 text-sm font-bold text-emerald-800">
+              <div className="min-w-56 rounded-2xl border border-white/15 bg-white/[0.08] p-4 backdrop-blur-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100/70">Current agreement</p>
+                <p className="mt-2 break-all text-lg font-semibold tracking-wide text-white">
                   {data.agreementNumber.trim() || "Not assigned"}
                 </p>
+                <div className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3 text-xs text-emerald-50/70">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-300/15 text-emerald-200">{"\u2713"}</span>
+                  Draft held in this tab
+                </div>
               </div>
             </div>
           </div>
 
+          <nav aria-label="Agreement form sections" className="mb-6 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white p-2 shadow-sm">
+            <div className="flex min-w-max gap-1">
+              {[
+                ["01", "Customer", "agreement-info"],
+                ["02", "Plan", "plan-info"],
+                ["03", "Payment", "payment-info"],
+                ["04", "Verification", "verification-info"],
+                ["05", "Witnesses", "witness-info"],
+              ].map(([number, label, target]) => (
+                <a key={target} href={`#${target}`} className="group flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-800">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500 transition group-hover:bg-emerald-100 group-hover:text-emerald-800">{number}</span>
+                  {label}
+                </a>
+              ))}
+            </div>
+          </nav>
+
           {/* Error */}
           {errorMessage ? (
-            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
+            <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
               <p className="text-sm font-semibold text-red-800">
                 {errorMessage}
               </p>
@@ -554,48 +580,45 @@ export default function ServiceAgreementPage() {
 
           {/* Form Sections */}
           <div className="space-y-5">
-            <CustomerForm
-              data={data}
-              onChange={handleDataChange}
-              errors={fieldErrors}
-            />
+            <section id="agreement-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
+              <SectionHeading number="01" title="Customer & agreement" description="Agreement reference, customer identity and contact details." />
+              <CustomerForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+            </section>
 
-            <PlanForm
-              data={data}
-              onChange={handleDataChange}
-              errors={fieldErrors}
-            />
+            <section id="plan-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
+              <SectionHeading number="02" title="Plan & validity" description="Coverage details, effective window and fee breakdown." />
+              <PlanForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+            </section>
 
-            <PaymentForm
-              data={data}
-              onChange={handleDataChange}
-              errors={fieldErrors}
-            />
+            <section id="payment-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
+              <SectionHeading number="03" title="Payment record" description="Capture the payment reference and official receipt details." />
+              <PaymentForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+            </section>
 
-            <VerificationForm
-              data={data}
-              onChange={handleDataChange}
-              errors={fieldErrors}
-            />
+            <section id="verification-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
+              <SectionHeading number="04" title="Verification & execution" description="Record the explanation, acceptance, delivery and signing timeline." />
+              <VerificationForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+            </section>
 
-            <WitnessForm
-              data={data}
-              onChange={handleDataChange}
-              errors={fieldErrors}
-            />
+            <section id="witness-info" className="scroll-mt-6 rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_-22px_rgba(15,23,42,0.4)] sm:p-7">
+              <SectionHeading number="05" title="Witnesses" description="Optional details for agreements completed with physical execution." />
+              <WitnessForm data={data} onChange={handleDataChange} errors={fieldErrors} />
+            </section>
 
             {/* Preview Action */}
-            <div className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="rounded-[24px] border border-emerald-200 bg-gradient-to-br from-white to-emerald-50/70 p-5 shadow-[0_12px_40px_-28px_rgba(16,94,68,0.45)] sm:p-7">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="text-base font-bold text-gray-950">
-                    Ready to Review?
+                  <h2 className="text-base font-bold text-slate-950">
+                    Ready for a document review?
                   </h2>
 
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
-                    Click Preview Agreement to generate the actual Service
-                    Agreement PDF from the master DOCX template. You can then
-                    inspect the complete document before downloading it.
+                    Your entries are checked before conversion. The PDF preview
+                    lets you inspect the generated agreement before you save it.
+                  </p>
+                  <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+                    The generated agreement is sent to ConvertAPI for PDF rendering.
                   </p>
                 </div>
 
@@ -612,7 +635,7 @@ export default function ServiceAgreementPage() {
                     </>
                   ) : (
                     <>
-                      <span className="text-base">◉</span>
+                      <span className="rounded-md border border-white/20 px-1.5 py-0.5 text-[9px] font-bold tracking-wide">PDF</span>
                       Preview Agreement
                     </>
                   )}
@@ -644,15 +667,10 @@ export default function ServiceAgreementPage() {
   return (
     <main className="min-h-screen bg-gray-100 px-3 py-4 sm:px-5 sm:py-6">
       <div className="mx-auto max-w-[1500px]">
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm text-amber-900">
-            <span className="mr-2 rounded bg-yellow-300 px-1.5 py-0.5 font-semibold text-amber-950">
-              Highlighted
-            </span>
-            Everything marked yellow is a value taken from the form. It is a
-            review aid only. Use the <strong>Confirm &amp; Download</strong>{" "}
-            button below to save the agreement &mdash; that copy is clean, with
-            no highlighting.
+        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm text-emerald-950">
+            Review the generated agreement below. The <strong>Confirm &amp; Download</strong>{" "}
+            button saves this same PDF.
           </p>
         </div>
 

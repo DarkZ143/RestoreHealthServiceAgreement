@@ -36,6 +36,8 @@ export default function CustomerForm({
         onChange={onChange}
         type="number"
         min="18"
+        max="150"
+        step="1"
         placeholder="Enter customer age"
       />
 

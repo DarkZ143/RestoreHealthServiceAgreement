@@ -77,7 +77,7 @@ function formatTime(value: string): string {
 }
 
 function displayValue(value: string): string {
-  return value?.trim() || "—";
+  return value?.trim() || "\u2014";
 }
 
 function getFieldValue(field: ReviewField): string {
@@ -634,7 +634,7 @@ function ReviewStatusPanel({
                                 : "bg-amber-500 text-white"
                             }`}
                           >
-                            {filled ? "✓" : "!"}
+                            {filled ? "\u2713" : "!"}
                           </div>
 
                           <div className="min-w-0 flex-1">
@@ -649,7 +649,7 @@ function ReviewStatusPanel({
                                   : "font-medium text-amber-700"
                               }`}
                             >
-                              {filled ? value : "Not filled"}
+                            {filled ? "\u2713" : "!"}
                             </p>
                           </div>
                         </div>
@@ -737,7 +737,7 @@ export default function DocumentPreview({
                 </div>
               ) : pdfUrl ? (
                 <div className="inline-flex items-center gap-2 self-start rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                  <span>✓</span>
+                  <span>{"\u2713"}</span>
                   PDF Ready
                 </div>
               ) : (
@@ -942,7 +942,7 @@ export default function DocumentPreview({
               disabled={isGenerating}
               className="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              ← Back & Edit
+              {"\u2190 Back & Edit"}
             </button>
 
             <button
@@ -953,7 +953,7 @@ export default function DocumentPreview({
             >
               {isDownloaded ? (
                 <>
-                  <span>✓</span>
+                  <span>{"\u2713"}</span>
                   Downloaded
                 </>
               ) : (

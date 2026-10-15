@@ -44,6 +44,7 @@ export default function PlanForm({
         error={errors.validityDate}
         onChange={onChange}
         type="date"
+        min={data.issueDate || undefined}
       />
 
       <FormField
@@ -55,7 +56,7 @@ export default function PlanForm({
         type="number"
         min="0"
         step="0.01"
-        prefix="₹"
+        prefix={String.fromCodePoint(0x20b9)}
         placeholder="0.00"
       />
 
@@ -68,7 +69,7 @@ export default function PlanForm({
         type="number"
         min="0"
         step="0.01"
-        prefix="₹"
+        prefix={String.fromCodePoint(0x20b9)}
         placeholder="0.00"
       />
 
@@ -81,7 +82,7 @@ export default function PlanForm({
         type="number"
         min="0"
         step="0.01"
-        prefix="₹"
+        prefix={String.fromCodePoint(0x20b9)}
         placeholder="0.00"
         inputClassName="py-2.5 pl-8 pr-3 font-medium"
         hint="Total amount payable can be calculated from Fees + Taxes."

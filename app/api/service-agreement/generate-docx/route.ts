@@ -83,8 +83,8 @@ function witnessField(value: string, blankRule: string): string {
  *   relationship recorded as self  -> "the Customer"
  * - any other payer                -> "a family member"
  */
-const TICKED_BOX = "☑";
-const EMPTY_BOX = "☐";
+const TICKED_BOX = String.fromCodePoint(0x2611);
+const EMPTY_BOX = String.fromCodePoint(0x2610);
 
 const SELF_RELATIONSHIPS = ["self", "same", "customer", "own", "myself"];
 
