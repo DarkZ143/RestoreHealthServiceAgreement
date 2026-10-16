@@ -3,15 +3,11 @@ import {
   firebaseIsConfigured,
   listClients,
 } from "@/app/lib/firebase/firestore-rest";
-import { requireApiSession } from "@/app/lib/firebase/auth-session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
-  const unauthorized = await requireApiSession(request);
-  if (unauthorized) return unauthorized;
-
+export async function GET() {
   if (!firebaseIsConfigured()) {
     return Response.json({ clients: [], configured: false });
   }

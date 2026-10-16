@@ -25,10 +25,7 @@ import {
 } from "@/app/lib/docx/highlight";
 
 import { convertDocxToPdfWithConvertApi } from "@/app/lib/pdf/convertapi";
-import {
-  isSameOriginRequest,
-  requireApiSession,
-} from "@/app/lib/firebase/auth-session";
+import { isSameOriginRequest } from "@/app/lib/security/request-origin";
 
 
 
@@ -739,8 +736,6 @@ async function convertDocxToPdf(
 
 export async function POST(request: Request) {
 
-  const unauthorized = await requireApiSession(request);
-  if (unauthorized) return unauthorized;
   if (!isSameOriginRequest(request)) {
     return Response.json({ message: "Request origin is not allowed." }, { status: 403 });
   }

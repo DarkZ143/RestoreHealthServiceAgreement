@@ -9,7 +9,6 @@ import VerificationForm from "@/app/components/service-agreement/VerificationFor
 import WitnessForm from "@/app/components/service-agreement/WitnessForm";
 import DocumentPreview from "@/app/components/service-agreement/DocumentPreview";
 import Image from "next/image";
-import SignOutButton from "@/app/components/auth/SignOutButton";
 
 import type {
   AgreementClient,
@@ -701,7 +700,6 @@ export default function ServiceAgreementPage() {
                     Draft held in this tab
                   </div>
                 </div>
-                <SignOutButton />
               </div>
             </div>
           </div>
@@ -856,7 +854,6 @@ export default function ServiceAgreementPage() {
             Review the generated agreement below. The <strong>Confirm &amp; Download</strong>{" "}
             button saves this same PDF.
           </p>
-          <SignOutButton compact />
         </div>
 
         <DocumentPreview

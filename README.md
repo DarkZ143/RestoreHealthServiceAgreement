@@ -11,18 +11,9 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Staff sign-in
+## Workspace access
 
-The agreement workspace is available only to Firebase Authentication accounts created by an administrator. The app has no public sign-up flow.
-
-1. In Firebase Console, open **Authentication → Sign-in method** and enable **Email/Password**.
-2. In [Identity Platform settings](https://cloud.google.com/identity-platform/docs/concepts-manage-users#user-self-service), disable end-user sign-up and deletion. This blocks account creation through Firebase's APIs as well as through the app.
-3. Open **Authentication → Users → Add user** to create each staff account and assign its password.
-4. In Authentication settings, enable email-enumeration protection. In **Project settings → General**, copy this project's Firebase Web API key into `AUTH_FIREBASE_WEB_API_KEY` in `.env.local` and the production environment.
-5. Create a service account for the authentication Firebase project and set `AUTH_FIREBASE_CLIENT_EMAIL` and `AUTH_FIREBASE_PRIVATE_KEY`. It needs the `firebaseauth.users.createSession` permission ([Identity Platform IAM permissions](https://cloud.google.com/identity-platform/docs/access-control)). These `AUTH_FIREBASE_*` values are kept separate from `FIREBASE_*`, which continue to point to the Firestore project used for client lookup.
-6. Set up the **Password reset** email template in Firebase Authentication. Reset links are sent by Firebase; the app returns a generic confirmation so it does not reveal whether an email belongs to an account.
-
-The app stores Firebase-signed session cookies as HTTP-only cookies, expires them after eight hours, and checks the session on workspace pages and agreement APIs. The workspace includes a sign-out control.
+The home page opens the service agreement workspace directly. No sign-in or sign-up is required, and /login redirects to the workspace. Workspace API routes are also available without a user session, so restrict access through your hosting or network settings if the deployment should remain staff-only.
 
 ## PDF conversion setup
 
