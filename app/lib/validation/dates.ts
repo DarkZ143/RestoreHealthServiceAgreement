@@ -36,6 +36,20 @@ export function getDateYearsAgo(dateValue: string, years: number): string {
   return `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
 }
 
+/** Return the calendar anniversary one year after a YYYY-MM-DD date. */
+export function getDateOneYearAfter(dateValue: string): string {
+  if (!isValidIsoDate(dateValue)) {
+    return "";
+  }
+
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const targetYear = year + 1;
+  const lastDayOfMonth = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
+  const targetDay = Math.min(day, lastDayOfMonth);
+
+  return `${targetYear}-${String(month).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+}
+
 export function isValidIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;

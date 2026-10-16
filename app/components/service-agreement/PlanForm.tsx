@@ -67,6 +67,8 @@ export default function PlanForm({
         onChange={onChange}
         type="date"
         min={data.issueDate || undefined}
+        disabled
+        hint="Automatically set to one year after the Issue Date."
       />
 
       <FormField

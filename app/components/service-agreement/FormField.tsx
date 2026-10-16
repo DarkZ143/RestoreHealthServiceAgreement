@@ -135,7 +135,7 @@ export default function FormField({
       ? field === "customerDateOfBirth"
         ? "Customer must be between 18 and 150 years old."
         : field === "validityDate"
-          ? "Can be a future date; must be on or after the issue date."
+          ? "Automatically set to one year after Issue Date."
           : "Future dates are not allowed."
       : undefined);
 

@@ -16,6 +16,7 @@ import type {
 } from "@/app/types/agreement-client";
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import type { FieldErrors } from "@/app/lib/validation/service-agreement";
+import { getDateOneYearAfter } from "@/app/lib/validation/dates";
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
 
 const initialData: ServiceAgreementData = {
@@ -282,7 +283,7 @@ export default function ServiceAgreementPage() {
         ? [fieldOrUpdatedData]
         : (Object.keys(fieldOrUpdatedData) as (keyof ServiceAgreementData)[]);
 
-    const nextData =
+    const mergedData =
       typeof fieldOrUpdatedData === "string"
         ? {
             ...data,
@@ -292,6 +293,13 @@ export default function ServiceAgreementPage() {
             ...data,
             ...fieldOrUpdatedData,
           };
+    const issueDateChanged = changedFields.includes("issueDate");
+    const nextData = issueDateChanged
+      ? {
+          ...mergedData,
+          validityDate: getDateOneYearAfter(mergedData.issueDate),
+        }
+      : mergedData;
 
     const synchronizedDateFields: (keyof ServiceAgreementData)[] = [
       "sentDate",
@@ -300,6 +308,10 @@ export default function ServiceAgreementPage() {
       "currentDate",
     ];
     const fieldsToClear: (keyof ServiceAgreementData)[] = [...changedFields];
+
+    if (issueDateChanged) {
+      fieldsToClear.push("validityDate");
+    }
 
     if (changedFields.includes("customerDate")) {
       fieldsToClear.push(...synchronizedDateFields);

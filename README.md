@@ -40,7 +40,7 @@ Do not prefix Firebase service account variables with `NEXT_PUBLIC_`, and do not
 ## Validation rules
 
 - Every date must be today or earlier, except Validity Date.
-- Validity Date may be in the future and cannot be before Issue Date.
+- Validity Date is fixed to one calendar year after Issue Date.
 - Date of Birth must make the customer 18–150 years old. Customer Age must be a whole number and match the entered Date of Birth.
 - The same validation runs in the browser and on both document-generation API routes.
 

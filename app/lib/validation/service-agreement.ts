@@ -1,6 +1,7 @@
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import {
   calculateAge,
+  getDateOneYearAfter,
   getDateYearsAgo,
   getTodayDateString,
   isValidIsoDate,
@@ -233,14 +234,10 @@ export function validateServiceAgreement(
     isValidDate(data.issueDate) &&
     isValidDate(data.validityDate)
   ) {
-    const issueDate = new Date(`${data.issueDate}T00:00:00`);
-
-    const validityDate = new Date(`${data.validityDate}T00:00:00`);
-
-    if (validityDate < issueDate) {
+    if (data.validityDate !== getDateOneYearAfter(data.issueDate)) {
       addError(
         "validityDate",
-        "Validity Date cannot be earlier than Issue Date.",
+        "Validity Date must be exactly one year after Issue Date.",
       );
     }
   }
