@@ -1,9 +1,19 @@
 import { markClientAgreementCreated } from "@/app/lib/firebase/firestore-rest";
+import {
+  isSameOriginRequest,
+  requireApiSession,
+} from "@/app/lib/firebase/auth-session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const unauthorized = await requireApiSession(request);
+  if (unauthorized) return unauthorized;
+  if (!isSameOriginRequest(request)) {
+    return Response.json({ message: "Request origin is not allowed." }, { status: 403 });
+  }
+
   let body: { clientId?: unknown };
 
   try {

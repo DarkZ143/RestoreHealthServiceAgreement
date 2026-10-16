@@ -9,6 +9,7 @@ import VerificationForm from "@/app/components/service-agreement/VerificationFor
 import WitnessForm from "@/app/components/service-agreement/WitnessForm";
 import DocumentPreview from "@/app/components/service-agreement/DocumentPreview";
 import Image from "next/image";
+import SignOutButton from "@/app/components/auth/SignOutButton";
 
 import type {
   AgreementClient,
@@ -689,15 +690,18 @@ export default function ServiceAgreementPage() {
                   ))}
                 </div>
               </div>
-              <div className="min-w-56 rounded-2xl border border-white/15 bg-white/[0.08] p-4 backdrop-blur-sm">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100/70">Current agreement</p>
-                <p className="mt-2 break-all text-lg font-semibold tracking-wide text-white">
-                  {data.agreementNumber.trim() || "Not assigned"}
-                </p>
-                <div className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3 text-xs text-emerald-50/70">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-300/15 text-emerald-200">{"\u2713"}</span>
-                  Draft held in this tab
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="min-w-56 rounded-2xl border border-white/15 bg-white/[0.08] p-4 backdrop-blur-sm">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100/70">Current agreement</p>
+                  <p className="mt-2 break-all text-lg font-semibold tracking-wide text-white">
+                    {data.agreementNumber.trim() || "Not assigned"}
+                  </p>
+                  <div className="mt-4 flex items-center gap-2 border-t border-white/10 pt-3 text-xs text-emerald-50/70">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-300/15 text-emerald-200">{"\u2713"}</span>
+                    Draft held in this tab
+                  </div>
                 </div>
+                <SignOutButton />
               </div>
             </div>
           </div>
@@ -847,11 +851,12 @@ export default function ServiceAgreementPage() {
   return (
     <main className="min-h-screen bg-gray-100 px-3 py-4 sm:px-5 sm:py-6">
       <div className="mx-auto max-w-[1500px]">
-        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-emerald-950">
             Review the generated agreement below. The <strong>Confirm &amp; Download</strong>{" "}
             button saves this same PDF.
           </p>
+          <SignOutButton compact />
         </div>
 
         <DocumentPreview

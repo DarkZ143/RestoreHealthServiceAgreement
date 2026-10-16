@@ -8,6 +8,10 @@ import type { ServiceAgreementData } from "@/app/types/service-agreement";
 import { validateServiceAgreement } from "@/app/lib/validation/service-agreement";
 import { describeTemplateError } from "@/app/lib/docx/template-error";
 import { addCustomerSignature } from "@/app/lib/docx/signature";
+import {
+  isSameOriginRequest,
+  requireApiSession,
+} from "@/app/lib/firebase/auth-session";
 
 export const runtime = "nodejs";
 
@@ -293,6 +297,12 @@ async function generateDocx(data: ServiceAgreementData): Promise<Buffer> {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireApiSession(request);
+  if (unauthorized) return unauthorized;
+  if (!isSameOriginRequest(request)) {
+    return Response.json({ message: "Request origin is not allowed." }, { status: 403 });
+  }
+
   try {
     console.log("[Service Agreement] DOCX generation started.");
 
