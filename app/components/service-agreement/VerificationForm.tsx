@@ -95,6 +95,8 @@ export default function VerificationForm({
         error={errors.acceptanceDate}
         onChange={onChange}
         type="date"
+        disabled={false}
+        hint="Choose this date independently of the Welcome / Verification Call Date."
       />
 
       <FormField
