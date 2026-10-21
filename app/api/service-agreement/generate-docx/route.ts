@@ -51,7 +51,7 @@ function formatTime(value: string): string {
  * eight digits of the twelve-digit Aadhaar are rendered as a
  * fixed mask, grouped the way an Aadhaar number is printed:
  *
- * 1234 -> xxxx xxxx xxxx 1234
+ * 1234 -> XXXX XXXX 1234
  */
 function maskAadhaar(lastFour: string): string {
   const digits = lastFour.trim();
@@ -60,7 +60,7 @@ function maskAadhaar(lastFour: string): string {
     return "";
   }
 
-  return `xxxx xxxx xxxx ${digits}`;
+  return `XXXX XXXX ${digits}`;
 }
 
 /*

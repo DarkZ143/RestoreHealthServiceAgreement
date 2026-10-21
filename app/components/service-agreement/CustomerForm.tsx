@@ -263,7 +263,7 @@ export default function CustomerForm({
           error={errors.customerDate}
           onChange={onChange}
           type="date"
-          hint="This invoice date is also used for Document Sent, Effective, Execution, and Current Document dates."
+          hint="This invoice date is also used for Effective, Execution, and Current Document dates, and fills Document Sent Date by default."
         />
 
         <FormField

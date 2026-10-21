@@ -119,17 +119,17 @@ export default function VerificationForm({
 
       <FormField
         field="sentDate"
-        label="Date (same as Invoice Date)"
+        label="Document Sent Date"
         value={data.sentDate}
         error={errors.sentDate}
         onChange={onChange}
         type="date"
-        disabled
+        hint="Defaults to the Invoice Date; change it if the documents were sent on another day."
       />
 
       <FormField
         field="sentTime"
-        label="Time"
+        label="Document Sent Time"
         value={data.sentTime}
         error={errors.sentTime}
         onChange={onChange}

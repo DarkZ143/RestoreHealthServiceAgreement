@@ -155,7 +155,7 @@ function formatTime(value: string): string {
 
  *
 
- * 1234 -> xxxx xxxx xxxx 1234
+ * 1234 -> XXXX XXXX 1234
 
  */
 
@@ -169,7 +169,7 @@ function maskAadhaar(lastFour: string): string {
 
 
 
-  return `xxxx xxxx xxxx ${digits}`;
+  return `XXXX XXXX ${digits}`;
 
 }
 

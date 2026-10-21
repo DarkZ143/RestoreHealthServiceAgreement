@@ -493,7 +493,6 @@ export function validateServiceAgreement(
   const today = getTodayDateString();
 
   const invoiceDateLinkedFields = [
-    { field: "sentDate", label: "Document Sent Date" },
     { field: "effectiveDate", label: "Effective Date" },
     { field: "executionDate", label: "Execution / Signing Date" },
     { field: "currentDate", label: "Current / Document Date" },

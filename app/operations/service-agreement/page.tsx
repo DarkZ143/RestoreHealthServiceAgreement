@@ -301,6 +301,7 @@ export default function ServiceAgreementPage() {
         }
       : mergedData;
 
+    const invoiceDateChanged = changedFields.includes("customerDate");
     const synchronizedDateFields: (keyof ServiceAgreementData)[] = [
       "sentDate",
       "effectiveDate",
@@ -313,7 +314,7 @@ export default function ServiceAgreementPage() {
       fieldsToClear.push("validityDate");
     }
 
-    if (changedFields.includes("customerDate")) {
+    if (invoiceDateChanged) {
       fieldsToClear.push(...synchronizedDateFields);
     }
 
@@ -328,7 +329,9 @@ export default function ServiceAgreementPage() {
       payerName: nextData.customerName,
       relationship: "Self",
       payee: nextData.customerName,
-      sentDate: invoiceDate,
+      // Sent Date follows the Invoice Date only as a default;
+      // the operator may pick a different day afterwards.
+      sentDate: invoiceDateChanged ? invoiceDate : nextData.sentDate,
       effectiveDate: invoiceDate,
       executionDate: invoiceDate,
       currentDate: invoiceDate,
