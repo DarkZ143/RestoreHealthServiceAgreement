@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import CustomerForm from "@/app/components/service-agreement/CustomerForm";
 import PlanForm from "@/app/components/service-agreement/PlanForm";
@@ -152,6 +152,7 @@ export default function ServiceAgreementPage() {
 
   const [selectedClient, setSelectedClient] =
     useState<AgreementClient | null>(null);
+  const clientSelectionVersion = useRef(0);
 
   const [clientsLoadState, setClientsLoadState] =
     useState<AgreementClientLoadState>("loading");
@@ -159,10 +160,14 @@ export default function ServiceAgreementPage() {
   const [clientLoadMessage, setClientLoadMessage] = useState("");
 
   const [isConfirmingDownload, setIsConfirmingDownload] = useState(false);
+  const [isLoadingClientFinancials, setIsLoadingClientFinancials] =
+    useState(false);
 
   const totalPayable = useMemo(
-    () => calculateTotal(data.feesWithoutTax, data.tax),
-    [data.feesWithoutTax, data.tax],
+    () =>
+      data.totalPayable ||
+      calculateTotal(data.feesWithoutTax, data.tax),
+    [data.feesWithoutTax, data.tax, data.totalPayable],
   );
 
   const invalidFieldMessages = useMemo(
@@ -323,6 +328,9 @@ export default function ServiceAgreementPage() {
     }
 
     const invoiceDate = nextData.customerDate;
+    const suppliedTotalPayable =
+      typeof fieldOrUpdatedData !== "string" &&
+      Object.prototype.hasOwnProperty.call(fieldOrUpdatedData, "totalPayable");
 
     setData({
       ...nextData,
@@ -335,7 +343,9 @@ export default function ServiceAgreementPage() {
       effectiveDate: invoiceDate,
       executionDate: invoiceDate,
       currentDate: invoiceDate,
-      totalPayable: calculateTotal(nextData.feesWithoutTax, nextData.tax),
+      totalPayable: suppliedTotalPayable
+        ? nextData.totalPayable
+        : calculateTotal(nextData.feesWithoutTax, nextData.tax),
     });
 
     /*
@@ -383,8 +393,59 @@ export default function ServiceAgreementPage() {
     setPdfBlob(null);
   };
 
-  const handleSelectClient = (clientId: string) => {
+  const handleSelectClient = async (clientId: string) => {
+    const selectionVersion = ++clientSelectionVersion.current;
     const nextClient = clients.find((client) => client.id === clientId) ?? null;
+    setSelectedClient(nextClient);
+
+    let financials: Pick<
+      AgreementClient,
+      "utr" | "netPremium" | "gst" | "grossPremium"
+    > = {
+      utr: "",
+      netPremium: "",
+      gst: "",
+      grossPremium: "",
+    };
+    let financialsError = "";
+
+    if (nextClient) {
+      setIsLoadingClientFinancials(true);
+      setClientLoadMessage("Loading UTR and premium amounts from the CRM.");
+
+      try {
+        const response = await fetch("/api/service-agreement/clients", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: nextClient.id }),
+        });
+        const result = (await response.json()) as {
+          financials?: typeof financials;
+          message?: string;
+        };
+
+        if (!response.ok || !result.financials) {
+          throw new Error(result.message || "Could not load CRM payment details.");
+        }
+
+        financials = result.financials;
+      } catch (error) {
+        financialsError =
+          error instanceof Error
+            ? error.message
+            : "Could not load CRM payment details.";
+      }
+    } else {
+      setIsLoadingClientFinancials(false);
+      setClientLoadMessage("");
+    }
+
+    if (selectionVersion !== clientSelectionVersion.current) {
+      return;
+    }
+
+    setIsLoadingClientFinancials(false);
+
     const nextData: Partial<ServiceAgreementData> = nextClient
       ? {
           ...initialData,
@@ -395,11 +456,21 @@ export default function ServiceAgreementPage() {
           customerPhone: nextClient.phone,
           customerMail: nextClient.email,
           agentName: nextClient.agentName,
+          utr: financials.utr,
+          feesWithoutTax: financials.netPremium,
+          tax: financials.gst,
+          totalPayable:
+            financials.grossPremium ||
+            calculateTotal(financials.netPremium, financials.gst),
         }
       : initialData;
 
-    setSelectedClient(nextClient);
     handleDataChange(nextData);
+
+    setClientLoadMessage(financialsError);
+    if (financialsError) {
+      setErrorMessage(`Customer was selected, but CRM payment details could not be loaded: ${financialsError}`);
+    }
   };
 
   /*
@@ -822,7 +893,7 @@ export default function ServiceAgreementPage() {
                 <button
                   type="button"
                   onClick={handlePreviewAgreement}
-                  disabled={isGeneratingPreview}
+                  disabled={isGeneratingPreview || isLoadingClientFinancials}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isGeneratingPreview ? (
@@ -830,6 +901,8 @@ export default function ServiceAgreementPage() {
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                       Generating Preview...
                     </>
+                  ) : isLoadingClientFinancials ? (
+                    <>Loading CRM details...</>
                   ) : (
                     <>
                       <span className="rounded-md border border-white/20 px-1.5 py-0.5 text-[9px] font-bold tracking-wide">PDF</span>

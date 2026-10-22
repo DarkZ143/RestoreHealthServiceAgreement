@@ -144,7 +144,7 @@ export default function CustomerForm({
         <p
           aria-live="polite"
           className={`mt-3 text-xs leading-5 ${
-            clientsLoadState === "unavailable"
+            clientsLoadState === "unavailable" || clientLoadMessage
               ? "text-amber-800"
               : "text-slate-500"
           }`}
@@ -154,7 +154,7 @@ export default function CustomerForm({
             : clientsLoadState === "unavailable"
               ? clientLoadMessage || "Connect Firestore to load client records."
               : selectedClient
-                ? "Name, mobile, email, date of birth, and address are filled from Firestore and locked when present."
+                ? clientLoadMessage || "Customer details, UTR, and premium amounts are filled from Firestore where available. Customer identity fields are locked when present."
                 : clients.length === 0
                   ? "No clients were found."
                   : "All client records are available. Search by name or mobile number."}

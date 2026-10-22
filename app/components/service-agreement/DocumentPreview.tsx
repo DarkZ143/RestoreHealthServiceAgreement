@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import type { ServiceAgreementData } from "@/app/types/service-agreement";
+import { formatIndianAmount } from "@/app/lib/format/indian-amount";
 
 interface DocumentPreviewProps {
   data: ServiceAgreementData;
@@ -250,18 +251,18 @@ function getReviewSections(data: ServiceAgreementData): ReviewSection[] {
         },
         {
           key: "feesWithoutTax",
-          label: "Fees Without Tax",
-          value: data.feesWithoutTax,
+          label: "Fees (Excluding Tax / Net Premium)",
+          value: formatIndianAmount(data.feesWithoutTax),
         },
         {
           key: "tax",
-          label: "Tax",
-          value: data.tax,
+          label: "Taxes (GST)",
+          value: formatIndianAmount(data.tax),
         },
         {
           key: "totalPayable",
-          label: "Total Payable",
-          value: data.totalPayable,
+          label: "Total Amount Payable (Gross Premium)",
+          value: formatIndianAmount(data.totalPayable),
         },
       ],
     },

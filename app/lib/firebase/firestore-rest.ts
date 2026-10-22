@@ -52,6 +52,10 @@ interface FirestoreConfig {
     role: string;
     agentName: string;
     agreementCreated: string;
+    utr: string;
+    netPremium: string;
+    gst: string;
+    grossPremium: string;
   };
 }
 
@@ -82,17 +86,25 @@ function getConfig(): FirestoreConfig {
     agreementCreated:
       process.env.FIRESTORE_CLIENT_AGREEMENT_CREATED_FIELD?.trim() ||
       "serviceAgreementCreated",
+    utr: process.env.FIRESTORE_CLIENT_UTR_FIELD?.trim() || "transactionIds",
+    netPremium:
+      process.env.FIRESTORE_CLIENT_NET_PREMIUM_FIELD?.trim() ||
+      "premium.totalPremium",
+    gst: process.env.FIRESTORE_CLIENT_GST_FIELD?.trim() || "premium.gstAmount",
+    grossPremium:
+      process.env.FIRESTORE_CLIENT_GROSS_PREMIUM_FIELD?.trim() ||
+      "premium.grossPremium",
   };
 
+  const simpleField = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  const fieldPath = /^[A-Za-z_][A-Za-z0-9_]*(?: [A-Za-z0-9_]+)*(?:\.[A-Za-z_][A-Za-z0-9_]*(?: [A-Za-z0-9_]+)*)*$/;
   const invalidField = Object.entries(fields).some(([key, field]) =>
-    key === "agreementCreated"
-      ? !/^[A-Za-z_][A-Za-z0-9_]*$/.test(field)
-      : !/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(field),
+    key === "agreementCreated" ? !simpleField.test(field) : !fieldPath.test(field),
   );
 
   if (invalidField) {
     throw new FirebaseConfigurationError(
-      "Firestore field mappings must use dot-separated field names containing letters, digits, and underscores. The completion field must be top-level.",
+      "Firestore field mappings must use dot-separated field names containing letters, digits, underscores, and spaces. The completion field must be a simple top-level field name.",
     );
   }
 
@@ -170,6 +182,17 @@ function documentCollectionUrl(config: FirestoreConfig): string {
   return `${FIRESTORE_ROOT}/projects/${encodeURIComponent(config.projectId)}/databases/${encodeURIComponent(config.database)}/documents/${encodeURIComponent(config.collection)}`;
 }
 
+function firestoreFieldPath(fieldPath: string): string {
+  return fieldPath
+    .split(".")
+    .map((segment) =>
+      /^[A-Za-z_][A-Za-z0-9_]*$/.test(segment)
+        ? segment
+        : `\`${segment.replace(/\\/g, "\\\\").replace(/`/g, "\\`")}\``,
+    )
+    .join(".");
+}
+
 function documentsUrl(config: FirestoreConfig, documentId: string): string {
   return `${documentCollectionUrl(config)}/${encodeURIComponent(documentId)}`;
 }
@@ -184,7 +207,9 @@ function readValue(value: FirestoreValue | undefined): unknown {
   if ("timestampValue" in value) return value.timestampValue;
   if ("nullValue" in value) return null;
   if ("mapValue" in value) return value.mapValue.fields ?? {};
-  if ("arrayValue" in value) return value.arrayValue.values ?? [];
+  if ("arrayValue" in value) {
+    return (value.arrayValue.values ?? []).map(readValue);
+  }
 
   return undefined;
 }
@@ -217,6 +242,20 @@ function asString(value: unknown): string {
     return String(value);
   }
   return "";
+}
+
+function firstArrayString(value: unknown): string {
+  return Array.isArray(value) ? asString(value[0]).trim() : asString(value).trim();
+}
+
+function amountString(value: unknown): string {
+  const text = asString(value).trim();
+  const normalized = text.replace(/[₹,\s]/g, "");
+
+  if (!normalized) return "";
+
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount.toFixed(2) : text;
 }
 
 function isoDate(value: unknown): string {
@@ -258,6 +297,10 @@ function toAgreementClient(
       .slice(-10),
     email: asString(readField(fields, config.fields.email)).trim(),
     agentName: asString(readField(fields, config.fields.agentName)).trim(),
+    utr: "",
+    netPremium: "",
+    gst: "",
+    grossPremium: "",
   };
 }
 
@@ -307,7 +350,7 @@ export async function listClients(): Promise<AgreementClient[]> {
     const url = new URL(documentCollectionUrl(config));
     url.searchParams.set("pageSize", "1000");
     for (const field of uniqueFields) {
-      url.searchParams.append("mask.fieldPaths", field);
+      url.searchParams.append("mask.fieldPaths", firestoreFieldPath(field));
     }
     if (pageToken) url.searchParams.set("pageToken", pageToken);
 
@@ -329,6 +372,40 @@ export async function listClients(): Promise<AgreementClient[]> {
     .map((document) => toAgreementClient(document, config))
     .filter((client): client is AgreementClient => client !== null)
     .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export async function getClientAgreementFinancials(
+  clientId: string,
+): Promise<Pick<AgreementClient, "utr" | "netPremium" | "gst" | "grossPremium">> {
+  const config = getConfig();
+  const url = new URL(documentsUrl(config, clientId));
+  const selectedFields = [
+    config.fields.role,
+    config.fields.utr,
+    config.fields.netPremium,
+    config.fields.gst,
+    config.fields.grossPremium,
+  ];
+
+  for (const field of selectedFields) {
+    url.searchParams.append("mask.fieldPaths", firestoreFieldPath(field));
+  }
+
+  const document = await firestoreFetch<FirestoreDocument>(config, url.toString());
+  const role = asString(readField(document.fields, config.fields.role))
+    .trim()
+    .toLocaleLowerCase();
+
+  if (role !== "client") {
+    throw new Error("The selected Firestore record is not a client.");
+  }
+
+  return {
+    utr: firstArrayString(readField(document.fields, config.fields.utr)),
+    netPremium: amountString(readField(document.fields, config.fields.netPremium)),
+    gst: amountString(readField(document.fields, config.fields.gst)),
+    grossPremium: amountString(readField(document.fields, config.fields.grossPremium)),
+  };
 }
 
 export async function markClientAgreementCreated(clientId: string): Promise<void> {

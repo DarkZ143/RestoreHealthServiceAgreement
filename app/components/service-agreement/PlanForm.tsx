@@ -73,7 +73,7 @@ export default function PlanForm({
 
       <FormField
         field="feesWithoutTax"
-        label="Fees (Excluding Taxes)"
+        label="Fees (Excluding Tax / Net Premium)"
         value={data.feesWithoutTax}
         error={errors.feesWithoutTax}
         onChange={onChange}
@@ -86,7 +86,7 @@ export default function PlanForm({
 
       <FormField
         field="tax"
-        label="Taxes"
+        label="Taxes (GST)"
         value={data.tax}
         error={errors.tax}
         onChange={onChange}
@@ -99,7 +99,7 @@ export default function PlanForm({
 
       <FormField
         field="totalPayable"
-        label="Total Amount Payable"
+        label="Total Amount Payable (Gross Premium)"
         value={data.totalPayable}
         error={errors.totalPayable}
         onChange={onChange}

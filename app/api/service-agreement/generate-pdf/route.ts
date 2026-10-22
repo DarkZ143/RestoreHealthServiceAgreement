@@ -26,6 +26,10 @@ import {
 
 import { convertDocxToPdfWithConvertApi } from "@/app/lib/pdf/convertapi";
 import { isSameOriginRequest } from "@/app/lib/security/request-origin";
+import {
+  formatIndianAmount,
+  maskAadhaar,
+} from "@/app/lib/format/indian-amount";
 
 
 
@@ -159,19 +163,7 @@ function formatTime(value: string): string {
 
  */
 
-function maskAadhaar(lastFour: string): string {
 
-  const digits = lastFour.trim();
-
-
-
-  if (!digits) return "";
-
-
-
-  return `XXXX XXXX ${digits}`;
-
-}
 
 
 
@@ -257,15 +249,9 @@ function buildTemplateData(
 
     CustomerAge: data.customerAge,
 
-    CustomerAadharLastFour: data.customerAadharLastFour,
+    CustomerAadharLastFour: maskAadhaar(data.customerAadharLastFour),
 
-    /*
-
-     * Schedule 1 shows the masked form; the recitals on page 3
-
-     * keep using the bare last four digits.
-
-     */
+    /* Keep both the recitals and Schedule 1 in masked format. */
 
     CustomerAadharMasked: maskAadhaar(data.customerAadharLastFour),
 
@@ -326,11 +312,11 @@ function buildTemplateData(
 
 
 
-    FeeswithoutTax: data.feesWithoutTax,
+    FeeswithoutTax: formatIndianAmount(data.feesWithoutTax),
 
-    Tax: data.tax,
+    Tax: formatIndianAmount(data.tax),
 
-    TotalPayable: data.totalPayable,
+    TotalPayable: formatIndianAmount(data.totalPayable),
 
 
 

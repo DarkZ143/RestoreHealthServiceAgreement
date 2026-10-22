@@ -7,6 +7,10 @@ export interface AgreementClient {
   phone: string;
   email: string;
   agentName: string;
+  utr: string;
+  netPremium: string;
+  gst: string;
+  grossPremium: string;
 }
 
 export type AgreementClientLoadState = "loading" | "ready" | "unavailable";

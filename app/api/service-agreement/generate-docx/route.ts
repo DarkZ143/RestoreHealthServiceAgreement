@@ -9,6 +9,10 @@ import { validateServiceAgreement } from "@/app/lib/validation/service-agreement
 import { describeTemplateError } from "@/app/lib/docx/template-error";
 import { addCustomerSignature } from "@/app/lib/docx/signature";
 import { isSameOriginRequest } from "@/app/lib/security/request-origin";
+import {
+  formatIndianAmount,
+  maskAadhaar,
+} from "@/app/lib/format/indian-amount";
 
 export const runtime = "nodejs";
 
@@ -42,25 +46,6 @@ function formatTime(value: string): string {
   }
 
   return `${hours}:${minutes}`;
-}
-
-/**
- * Schedule 1 records the identity document as a masked value.
- *
- * Only the last four digits are ever collected, so the first
- * eight digits of the twelve-digit Aadhaar are rendered as a
- * fixed mask, grouped the way an Aadhaar number is printed:
- *
- * 1234 -> XXXX XXXX 1234
- */
-function maskAadhaar(lastFour: string): string {
-  const digits = lastFour.trim();
-
-  if (!digits) {
-    return "";
-  }
-
-  return `XXXX XXXX ${digits}`;
 }
 
 /*
@@ -121,12 +106,9 @@ function buildTemplateData(data: ServiceAgreementData): Record<string, string> {
 
     CustomerName: data.customerName,
     CustomerAge: data.customerAge,
-    CustomerAadharLastFour: data.customerAadharLastFour,
+    CustomerAadharLastFour: maskAadhaar(data.customerAadharLastFour),
 
-    /*
-     * Schedule 1 shows the masked form; the recitals on page 3
-     * keep using the bare last four digits.
-     */
+    /* Keep both the recitals and Schedule 1 in masked format. */
     CustomerAadharMasked: maskAadhaar(data.customerAadharLastFour),
 
     FullAdressCustomer: data.fullAddressCustomer,
@@ -164,9 +146,9 @@ function buildTemplateData(data: ServiceAgreementData): Record<string, string> {
     IssueDate: formatDate(data.issueDate),
     ValidityDate: formatDate(data.validityDate),
 
-    FeeswithoutTax: data.feesWithoutTax,
-    Tax: data.tax,
-    TotalPayable: data.totalPayable,
+    FeeswithoutTax: formatIndianAmount(data.feesWithoutTax),
+    Tax: formatIndianAmount(data.tax),
+    TotalPayable: formatIndianAmount(data.totalPayable),
 
     UTR: [
       data.utr,
